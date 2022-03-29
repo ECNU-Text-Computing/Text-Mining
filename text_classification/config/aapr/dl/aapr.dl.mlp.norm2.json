@@ -1,0 +1,26 @@
+{
+  "data_name": "aapr",
+
+  "model_name": "mlp",
+  "input_shape": [100],
+  "embed_dim": 128,
+  "hidden_dim": 128,
+  "num_classes": 2,
+  "dropout_rate": 0.5,
+  "learning_rate": 0.0001,
+  "num_epochs": 10,
+  "batch_size": 64,
+  "criterion_name": "CrossEntropyLoss",
+  "optimizer_name": "Adam",
+  "gpu": 0,
+
+  "folds": 10,
+  "feature": "norm",
+  "split_rate": 0.7,
+  "clear": 0,
+  "clean": 0,
+  "cover_rate": 1,
+  "min_count": 0,
+
+  "metrics_num": 4
+}

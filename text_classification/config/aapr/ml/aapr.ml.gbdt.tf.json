@@ -1,0 +1,10 @@
+{
+  "data_name": "aapr",
+  "model_name": "gbdt",
+  "folds": 10,
+  "feature": "tf",
+  "clear": 0,
+  "clean": 0,
+  "metrics_num": 4,
+  "split_rate": 0.7,
+  "num_topics": 50}
