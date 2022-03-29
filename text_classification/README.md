@@ -1,6 +1,4 @@
-# Text Mining
-This project aims to construct a comprehensive machine learning and deep learning framework for text mining, 
-including text classification, text matching, text generation, information extraction, and so on.
+# Text Classification
 
 ## Run
 ### To pre-process the data processor:
