@@ -130,6 +130,6 @@ dmypy.json
 
 # Our own
 */data/*
-text_classification/datasets/*
+*/datasets/*
 */logs/*
 */exp/*
