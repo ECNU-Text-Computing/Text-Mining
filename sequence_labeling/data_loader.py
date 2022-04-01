@@ -10,14 +10,14 @@ A class for something.
 import datetime
 import random
 import sys
-sys.path.insert('.')
-sys.path.insert('..')
+sys.path.insert(0, '.')
+sys.path.insert(0, '..')
 from sequence_labeling.data_processor import DataProcessor
 
 
-class Data_Loader(Data_Processor):
+class DataLoader(DataProcessor):
     def __init__(self):
-        super(Data_Loader, self).__init__()
+        super(DataLoader, self).__init__()
         print('Data_Loader Class Init...')
 
     # 依据词典、标签索引将input、output数据转化为向量
@@ -25,8 +25,8 @@ class Data_Loader(Data_Processor):
     def data_generator(self, batch_size=64, shuffle=True, op_mode=None):
         input_path = self.data_root + self.inputdata_file_path + '.' + op_mode
         output_path = self.data_root + self.outputdata_file_path + '.' + op_mode
-        word_dict = Data_Processor().load_vocab()
-        tags_dict = Data_Processor().load_tags()
+        word_dict = DataProcessor().load_vocab()
+        tags_dict = DataProcessor().load_tags()
 
         print("Load input data from {}.".format(input_path))
         print("Load output data from {}.".format(output_path))
@@ -60,7 +60,7 @@ class Data_Loader(Data_Processor):
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
 
-    loader = Data_Loader()
+    loader = DataLoader()
     for sentence, tag in loader.data_generator(op_mode='train'):
         print(sentence)
         print(tag)

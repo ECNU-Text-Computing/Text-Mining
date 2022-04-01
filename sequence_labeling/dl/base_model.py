@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from sequence_labeling.data_loader import Data_Loader
+from sequence_labeling.data_loader import DataLoader
 from sequence_labeling.data_processor import DataProcessor
 from sequence_labeling.utils.evaluate import Evaluator
 
@@ -78,7 +78,7 @@ class BaseModel(nn.Module):
         if op_mode == 'train':
             model.train()
             for epoch in range(self.num_epochs):  # again, normally you would NOT do 300 epochs, it is toy data
-                for sentenceList, tagList in Data_Loader().data_generator(batch_size=self.batch_size, op_mode=op_mode):
+                for sentenceList, tagList in DataLoader().data_generator(batch_size=self.batch_size, op_mode=op_mode):
                     for i in range(len(sentenceList)):
                         batch_x = torch.LongTensor(sentenceList[i])
                         batch_y = torch.LongTensor(tagList[i])
@@ -96,7 +96,7 @@ class BaseModel(nn.Module):
             print("op_mode参数未赋值(train/eval/test)")
 
         with torch.no_grad():
-            for sentenceList, tagList in Data_Loader().data_generator(op_mode=op_mode):
+            for sentenceList, tagList in DataLoader().data_generator(op_mode=op_mode):
                 batch_x = torch.LongTensor(sentenceList[0])
                 print(batch_x)
                 scores = model(batch_x)
