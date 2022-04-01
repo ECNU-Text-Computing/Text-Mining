@@ -1,0 +1,27 @@
+{
+  "data_name": "cmed",
+  "data_root": "./Datasets/cmed/",
+  "inputdata_file_path": "data.input",
+  "outputdata_file_path": "data.output",
+  "dict_file_path": "vocab.json",
+  "tags_file_path": "tags.json",
+  "model_save_path": "model.ckpt",
+
+  "model_name": "BiLSTM_CRF",
+  "tag_to_ix": {"B": 0, "I": 1, "O": 2, "<START>": 3, "<STOP>": 4},
+  "embedding_dim": 5,
+  "hidden_dim": 4,
+  "batch_size": 64,
+  "dropout_rate": 0.5,
+  "learning_rate": 0.1,
+  "num_epochs": 300,
+  "tag_size": 3,
+  "criterion_name": "neg_log_likelihood",
+  "optimizer_name": "SGD",
+
+  "folds": 10,
+  "feature": "norm",
+  "split_rate": 0.7,
+  "cover_rate": 1,
+  "min_count": 0
+}
