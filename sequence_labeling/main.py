@@ -12,9 +12,8 @@ import datetime
 import json
 import os
 
-from sequence_labeling.dl.base_model import BaseModel
-# from Deep.BiLSTM_CNN import BiLSTM_CRF
-from sequence_labeling.data_processor import DataProcessor
+from dl.base_model import BaseModel
+from data_processor import DataProcessor
 
 ml_model_dict = {
 }
@@ -26,11 +25,19 @@ dl_model_dict = {
 
 
 def main_dl(config):
-    vocab_size = len(DataProcessor().load_vocab())
-
-    model = dl_model_dict[model_name](vocab_size=vocab_size, **config)
-    print(model)
-    model.run_Model(model, op_mode='train')
+    if config['n_folds'] == 0:
+        data_path = '{}'.format(config['data_root'])
+        model = dl_model_dict[model_name](**config)
+        print(model)
+        model.run_model(model, run_mode='train', data_path=data_path)
+        model.run_model(model, run_mode='test', data_path=data_path)
+    elif config['n_folds'] > 0:
+        for n in range(config['n_folds']):
+            data_path = '{}{}/'.format(config['data_root'], n)
+            model = dl_model_dict[model_name](**config)
+            model.run_model(model, run_mode='train', data_path=data_path)
+    else:
+        raise RuntimeError("There is no n_folds in config.")
 
 
 if __name__ == '__main__':
@@ -40,10 +47,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args.phase)
-    # args = 'cmed.dl.BaseModel.norm'
     data_name = args.phase.strip().split('.')[0]
     model_cate = args.phase.strip().split('.')[1]
     config_path = './config/{}/{}/{}.json'.format(data_name, model_cate, args.phase)
+    # args = 'cmed.dl.base_model.norm'
+    # config_path = './config/cmed/dl/cmed.dl.base_model.norm.json'
     if not os.path.exists(config_path):
         raise RuntimeError("There is no {} config.".format(args))
     config = json.load(open(config_path, 'r'))
