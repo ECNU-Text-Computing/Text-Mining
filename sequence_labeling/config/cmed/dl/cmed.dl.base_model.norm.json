@@ -14,7 +14,7 @@
   "dropout_rate": 0.5,
   "learning_rate": 0.1,
   "num_epochs": 300,
-  "tag_size": 3,
+  "tag_size": 4,
   "criterion_name": "NLLLoss",
   "optimizer_name": "SGD",
 
