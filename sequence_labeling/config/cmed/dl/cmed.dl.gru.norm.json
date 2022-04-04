@@ -1,0 +1,33 @@
+{
+  "data_name": "cmed",
+  "data_root": "./Datasets/cmed/",
+  "inputdata_file_name": "data.input",
+  "outputdata_file_name": "data.output",
+  "dict_file_name": "vocab.json",
+  "tags_file_name": "tags.json",
+  "model_save_name": "model.ckpt",
+
+  "n_folds": 0,
+  "shuffle": "True",
+  "feature": "norm",
+  "split_rate": 0.7,
+  "cover_rate": 1,
+  "min_count": 0,
+
+  "pad_token": "<PAD>",
+
+  "model_name": "GRU",
+  "embedding_dim": 5,
+  "hidden_dim": 4,
+  "bidirectional": "True",
+  "num_layers=": 8,
+  "tag_size": 4,
+  "dropout_rate": 0.5,
+  "learning_rate": 0.01,
+
+  "num_epochs": 100,
+  "batch_size": 8,
+
+  "criterion_name": "NLLLoss",
+  "optimizer_name": "Adam"
+}
