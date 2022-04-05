@@ -14,12 +14,16 @@ import os
 
 from dl.base_model import BaseModel
 from data_processor import DataProcessor
+from dl.bilstm import BiLSTM
+from dl.gru import GRU
 
 ml_model_dict = {
 }
 
 dl_model_dict = {
     'LSTM': BaseModel,
+    'Bi-LSTM': BiLSTM,
+    'GRU': GRU
     # 'BiLSTM_CNN': BiLSTM_CRF
 }
 

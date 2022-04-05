@@ -6,14 +6,15 @@ Base_Model
 ======
 A class for something.
 """
-import sys
 import argparse
 import datetime
+import sys
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils.rnn as rnn_utils
+# import matplotlib.pyplot as plt
 
 sys.path.insert(0, '.')
 sys.path.insert(0, '..')
@@ -34,6 +35,7 @@ class BaseModel(nn.Module):
 
         self.pad_token = config['pad_token']
 
+        self.model_name = config['model_name']
         self.embedding_dim = config['embedding_dim']
         self.hidden_dim = config['hidden_dim']
         self.tagset_size = config['tag_size']
@@ -72,19 +74,15 @@ class BaseModel(nn.Module):
     def forward(self, X, X_lengths):
         batch_size, seq_len = X.size()
         X = self.word_embeddings(X)
-        print('X_embedding:{}'.format(X.shape))
         X = rnn_utils.pack_padded_sequence(X, X_lengths, batch_first=True)
         X, _ = self.lstm(X)
-        X, _ = rnn_utils.pad_packed_sequence(X, batch_first=True)
-        print('X_embedding_pack_lstm_pad:{}'.format(X.shape))
+        X, _ = rnn_utils.pad_packed_sequence(X, batch_first=True)  # X的shape为[batch_size, seq_len, hidden_dim]
         X = X.contiguous()
-        X = X.view(-1, X.shape[2])
-        X = self.hidden_to_tag(X)
-        print('X_hidden_to_tag:{}'.format(X.shape))
-        tag_scores = F.log_softmax(X, dim=1)
-        print('tag_scores:{}'.format(tag_scores.shape))
-        # tag_scores = X.view(batch_size, seq_len, self.tagset_size)
-        # print('tag_scores_view:{}'.format(tag_scores.shape))
+        X = X.view(-1, X.shape[2])  # 将X降维为[batch_size*seq_len, hidden_dim]
+        X = self.hidden_to_tag(X)  # X的shape为[batch_size*seq_len, tagset_size]
+        tag_scores = F.log_softmax(X, dim=1)  # tag_scores的shape为[batch_size*seq_len, tagset_size]
+        # print('shape of tag_scores:{}'.format(tag_scores.shape))
+
         return tag_scores
 
     def run_model(self, model, run_mode, data_path):
@@ -92,9 +90,13 @@ class BaseModel(nn.Module):
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
 
         if run_mode == 'train':
+            print('Running {} model. Training...'.format(self.model_name))
             model.train()
-            for epoch in range(self.num_epochs):  # again, normally you would NOT do 300 epochs, it is toy data
-                # for sentenceList, tagList in DataLoader().data_generator(batch_size=self.batch_size, op_mode=op_mode):
+            acc_list = []  # 记录每一batch的acc
+            for epoch in range(self.num_epochs):
+                total_loss = 0
+                batch_counter = 0  # batch计数器
+                train_data_num = 0  # 数据计数器
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
                     batch_x = torch.tensor(x).long()
@@ -102,34 +104,53 @@ class BaseModel(nn.Module):
                     tag_scores = model(batch_x, x_len)
                     batch_y = torch.tensor(y).long()
                     batch_y = batch_y.view(-1)
-                    print('batch_y:{}'.format(batch_y.shape))
-                    # config中"tag_size"的值应为3，但由于padding增加了0，运行出错。暂时改为4？？？？？
                     loss = loss_function(tag_scores, batch_y)
                     loss.backward()
                     optimizer.step()
 
+                    total_loss += loss.item()
+                    batch_counter += 1
+                    train_data_num += len(x)
+                    if batch_counter % 5 == 0:
+                        print("Done Epoch{}. Loss={}".format(epoch, total_loss / train_data_num))
+
+                    y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
+                    y_predict = self.index_to_tag(y_predict)
+                    y_true = y.flatten()
+                    y_true = self.index_to_tag(y_true)
+                    acc_value = Evaluator().acc(y_true, y_predict)
+                    acc_list.append(acc_value)  # 记录评价结果
+                    # print('acc_value = {}'.format(acc_value))
+                    # n_batch = np.arange(1, len(acc_list) + 1, 1)
+                    # acc_list = np.array(acc_list)
+                    # plt.plot(n_batch, acc_list)
+                    # plt.xlabel('Batch')
+                    # plt.ylabel('Accuracy')
+                    # plt.grid()
+                    # plt.show()
+
             model_save_path = self.data_root + self.model_save_path
             torch.save(model, '{}'.format(model_save_path))
         elif run_mode == 'eval' or 'test':
+            print('Running {} model. {}ing...'.format(self.model_name, run_mode))
             model.eval()
-            with torch.no_grad():
-                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
-                                                                                   run_mode=run_mode):
-                    batch_x = torch.tensor(x).long()
-                    tag_scores = model(batch_x, x_len)
-                    # print("After Train:", scores)
-                    # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
-                    y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
-                    y_predict = self.index_to_tag(y_predict)
-                    print(y_predict)
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+                                                                               run_mode=run_mode):
+                batch_x = torch.tensor(x).long()
+                tag_scores = model(batch_x, x_len)
+                # print("After Train:", scores)
+                # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
+                y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
+                y_predict = self.index_to_tag(y_predict)
+                print(y_predict)
 
-                    # print正确的标注结果
-                    y_true = y.flatten()
-                    y_true = self.index_to_tag(y_true)
-                    print(y_true)
+                # print正确的标注结果
+                y_true = y.flatten()
+                y_true = self.index_to_tag(y_true)
+                print(y_true)
 
-                    # 输出评价结果
-                    print(Evaluator().classifyreport(y_true, y_predict))
+                # 输出评价结果
+                print(Evaluator().classifyreport(y_true, y_predict))
         else:
             print("run_mode参数未赋值(train/eval/test)")
 
