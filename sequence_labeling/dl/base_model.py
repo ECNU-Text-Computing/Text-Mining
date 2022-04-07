@@ -10,11 +10,12 @@ import argparse
 import datetime
 import sys
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils.rnn as rnn_utils
-# import matplotlib.pyplot as plt
 
 sys.path.insert(0, '.')
 sys.path.insert(0, '..')
@@ -120,37 +121,38 @@ class BaseModel(nn.Module):
                     y_true = self.index_to_tag(y_true)
                     acc_value = Evaluator().acc(y_true, y_predict)
                     acc_list.append(acc_value)  # 记录评价结果
-                    # print('acc_value = {}'.format(acc_value))
-                    # n_batch = np.arange(1, len(acc_list) + 1, 1)
-                    # acc_list = np.array(acc_list)
-                    # plt.plot(n_batch, acc_list)
-                    # plt.xlabel('Batch')
-                    # plt.ylabel('Accuracy')
-                    # plt.grid()
-                    # plt.show()
+                    print('acc_value = {}'.format(acc_value))
+            n_batch = np.arange(1, len(acc_list) + 1, 1)
+            acc_list = np.array(acc_list)
+            plt.plot(n_batch, acc_list)
+            plt.xlabel('Batch')
+            plt.ylabel('Accuracy')
+            plt.grid()
+            plt.show()
 
             model_save_path = self.data_root + self.model_save_path
             torch.save(model, '{}'.format(model_save_path))
         elif run_mode == 'eval' or 'test':
             print('Running {} model. {}ing...'.format(self.model_name, run_mode))
             model.eval()
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
-                                                                               run_mode=run_mode):
-                batch_x = torch.tensor(x).long()
-                tag_scores = model(batch_x, x_len)
-                # print("After Train:", scores)
-                # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
-                y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
-                y_predict = self.index_to_tag(y_predict)
-                print(y_predict)
+            with torch.no_grad():
+                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+                                                                                   run_mode=run_mode):
+                    batch_x = torch.tensor(x).long()
+                    tag_scores = model(batch_x, x_len)
+                    # print("After Train:", scores)
+                    # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
+                    y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
+                    y_predict = self.index_to_tag(y_predict)
+                    print(y_predict)
 
-                # print正确的标注结果
-                y_true = y.flatten()
-                y_true = self.index_to_tag(y_true)
-                print(y_true)
+                    # print正确的标注结果
+                    y_true = y.flatten()
+                    y_true = self.index_to_tag(y_true)
+                    print(y_true)
 
-                # 输出评价结果
-                print(Evaluator().classifyreport(y_true, y_predict))
+                    # 输出评价结果
+                    print(Evaluator().classifyreport(y_true, y_predict))
         else:
             print("run_mode参数未赋值(train/eval/test)")
 

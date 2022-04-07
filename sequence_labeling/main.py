@@ -13,8 +13,8 @@ import json
 import os
 
 from dl.base_model import BaseModel
-from data_processor import DataProcessor
 from dl.bilstm import BiLSTM
+from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
 
 ml_model_dict = {
@@ -23,8 +23,8 @@ ml_model_dict = {
 dl_model_dict = {
     'LSTM': BaseModel,
     'Bi-LSTM': BiLSTM,
-    'GRU': GRU
-    # 'BiLSTM_CNN': BiLSTM_CRF
+    'GRU': GRU,
+    'BiLSTM_CRF': BiLSTM_CRF
 }
 
 
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     if not os.path.exists(config_path):
         raise RuntimeError("There is no {} config.".format(args))
     config = json.load(open(config_path, 'r'))
-    print('config: ', config)
+    # print('config: ', config)
 
     model_name = config['model_name']
     if model_name in dl_model_dict:
