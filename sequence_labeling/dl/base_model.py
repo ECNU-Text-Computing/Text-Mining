@@ -33,9 +33,7 @@ class BaseModel(nn.Module):
         self.config = config
         self.data_root = config['data_root']
         self.model_save_path = config['model_save_name']
-
         self.pad_token = config['pad_token']
-
         self.model_name = config['model_name']
         self.embedding_dim = config['embedding_dim']
         self.hidden_dim = config['hidden_dim']
@@ -46,11 +44,11 @@ class BaseModel(nn.Module):
 
         self.criterion_dict = {
             'NLLLoss': torch.nn.NLLLoss,
-            'CrossEntropyLoss': torch.nn.CrossEntropyLoss
+            'CrossEntropyLoss': torch.nn.CrossEntropyLoss,
         }
         self.criterion_name = config['criterion_name']
-        if self.criterion_name not in self.criterion_dict:
-            raise ValueError("There is no criterion_name: {}.".format(self.criterion_name))
+        if self.criterion_name in self.criterion_dict:
+            self.criterion = self.criterion_dict[self.criterion_name]()
 
         self.optimizer_dict = {
             'SGD': torch.optim.SGD,
@@ -96,13 +94,12 @@ class BaseModel(nn.Module):
 
 
     def run_model(self, model, run_mode, data_path):
-        loss_function = self.criterion_dict[self.criterion_name]()
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
 
         if run_mode == 'train':
             print('Running {} model. Training...'.format(self.model_name))
             model.train()
-            acc_list = []  # 记录每一batch的acc
+            loss_list = []  # 记录每一batch的acc
             for epoch in range(self.num_epochs):
                 total_loss = 0
                 batch_counter = 0  # batch计数器
@@ -110,35 +107,28 @@ class BaseModel(nn.Module):
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
                     batch_x = torch.tensor(x).long()
-                    print('batch_x shape: {}'.format(batch_x.shape))
+                    # print('batch_x shape: {}'.format(batch_x.shape))
                     model.zero_grad()
                     tag_scores = model(batch_x, x_len, run_mode)
                     batch_y = torch.tensor(y).long()
                     batch_y = batch_y.view(-1)
-                    print('batch_y shape: {}'.format(batch_y.shape))
-                    loss = loss_function(tag_scores, batch_y)
-                    print('loss = {}'.format(loss))
+                    # print('batch_y shape: {}'.format(batch_y.shape))
+                    loss = self.criterion(tag_scores, batch_y)
                     loss.backward()
                     optimizer.step()
 
                     total_loss += loss.item()
                     batch_counter += 1
                     train_data_num += len(x)
-                    if batch_counter % 5 == 0:
-                        print("Done Epoch{}. Loss={}".format(epoch+1, total_loss / train_data_num))
+                print("Done Epoch{}. Data_number = {}, Loss={}".format(epoch+1, train_data_num,
+                                                                       total_loss / train_data_num))
+                loss_list.append(total_loss)  # 记录评价结果
 
-                    y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
-                    y_predict = self.index_to_tag(y_predict)
-                    y_true = y.flatten()
-                    y_true = self.index_to_tag(y_true)
-                    acc_value = Evaluator().acc(y_true, y_predict)
-                    acc_list.append(acc_value)  # 记录评价结果
-                    print('acc_value = {}'.format(acc_value))
-            n_batch = np.arange(1, len(acc_list) + 1, 1)
-            acc_list = np.array(acc_list)
+            n_batch = np.arange(1, len(loss_list) + 1, 1)
+            acc_list = np.array(loss_list)
             plt.plot(n_batch, acc_list)
-            plt.xlabel('Batch')
-            plt.ylabel('Accuracy')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
             plt.grid()
             plt.show()
 

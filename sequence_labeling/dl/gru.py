@@ -42,6 +42,7 @@ class GRU(BaseModel):
         self.criterion_name = config['criterion_name']
         if self.criterion_name not in self.criterion_dict:
             raise ValueError("There is no criterion_name: {}.".format(self.criterion_name))
+        self.criterion = self.criterion_dict[self.criterion_name]()
 
         self.optimizer_dict = {
             'SGD': torch.optim.SGD,

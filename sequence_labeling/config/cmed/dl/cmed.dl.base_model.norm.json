@@ -20,7 +20,7 @@
   "embedding_dim": 5,
   "hidden_dim": 6,
   "bidirectional": "False",
-  "num_layers=": 8,
+  "num_layers=": 7,
   "tag_size": 4,
   "dropout_rate": 0.5,
   "learning_rate": 0.01,
