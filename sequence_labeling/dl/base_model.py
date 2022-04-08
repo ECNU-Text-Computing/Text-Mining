@@ -72,7 +72,7 @@ class BaseModel(nn.Module):
         # The linear layer that maps from hidden state space to tag space
         self.hidden_to_tag = nn.Linear(self.hidden_dim, self.tagset_size)
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, run_mode):
         batch_size, seq_len = X.size()
         X = self.word_embeddings(X)
         X = rnn_utils.pack_padded_sequence(X, X_lengths, batch_first=True)
@@ -81,10 +81,19 @@ class BaseModel(nn.Module):
         X = X.contiguous()
         X = X.view(-1, X.shape[2])  # 将X降维为[batch_size*seq_len, hidden_dim]
         X = self.hidden_to_tag(X)  # X的shape为[batch_size*seq_len, tagset_size]
-        tag_scores = F.log_softmax(X, dim=1)  # tag_scores的shape为[batch_size*seq_len, tagset_size]
-        # print('shape of tag_scores:{}'.format(tag_scores.shape))
 
-        return tag_scores
+        if run_mode == 'train':
+            tag_scores = F.log_softmax(X, dim=1)  # tag_scores的shape为[batch_size*seq_len, tagset_size]
+            # print('shape of tag_scores:{}'.format(tag_scores.shape))
+            return tag_scores
+        elif run_mode == 'eval' or 'test':
+            tag_scores = F.log_softmax(X, dim=1)
+            # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
+            predict = list(torch.max(tag_scores, dim=1)[1].numpy())  # [batch_size, seq_len]大小的列表
+            return predict
+        else:
+            raise RuntimeError("main.py调用model.run_model()时，参数'run_mode'未赋值！")
+
 
     def run_model(self, model, run_mode, data_path):
         loss_function = self.criterion_dict[self.criterion_name]()
@@ -101,11 +110,14 @@ class BaseModel(nn.Module):
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
                     batch_x = torch.tensor(x).long()
+                    print('batch_x shape: {}'.format(batch_x.shape))
                     model.zero_grad()
-                    tag_scores = model(batch_x, x_len)
+                    tag_scores = model(batch_x, x_len, run_mode)
                     batch_y = torch.tensor(y).long()
                     batch_y = batch_y.view(-1)
+                    print('batch_y shape: {}'.format(batch_y.shape))
                     loss = loss_function(tag_scores, batch_y)
+                    print('loss = {}'.format(loss))
                     loss.backward()
                     optimizer.step()
 
@@ -113,7 +125,7 @@ class BaseModel(nn.Module):
                     batch_counter += 1
                     train_data_num += len(x)
                     if batch_counter % 5 == 0:
-                        print("Done Epoch{}. Loss={}".format(epoch, total_loss / train_data_num))
+                        print("Done Epoch{}. Loss={}".format(epoch+1, total_loss / train_data_num))
 
                     y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
                     y_predict = self.index_to_tag(y_predict)
@@ -138,11 +150,9 @@ class BaseModel(nn.Module):
             with torch.no_grad():
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
+
                     batch_x = torch.tensor(x).long()
-                    tag_scores = model(batch_x, x_len)
-                    # print("After Train:", scores)
-                    # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
-                    y_predict = list(torch.max(tag_scores, dim=1)[1].numpy())
+                    y_predict = model(batch_x, x_len, run_mode)
                     y_predict = self.index_to_tag(y_predict)
                     print(y_predict)
 
@@ -159,6 +169,7 @@ class BaseModel(nn.Module):
     def index_to_tag(self, y):
         tag_index_dict = DataProcessor(**self.config).load_tags()
         index_tag_dict = dict(zip(tag_index_dict.values(), tag_index_dict.keys()))
+        # y = list(torch.tensor(y, dtype=int).view(-1).numpy())
         y_tagseq = []
         for i in range(len(y)):
             y_tagseq.append(index_tag_dict[y[i]])

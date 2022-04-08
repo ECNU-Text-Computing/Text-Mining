@@ -65,9 +65,9 @@ class GRU(BaseModel):
         self.hidden_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tagset_size)  # 全连接层
 
     def _init_hidden(self, batch_size):  # 初始化h_0
-        return torch.randn(self.num_layers * self.n_directions, batch_size, self.hidden_dim)
+        return torch.zeros(self.num_layers * self.n_directions, batch_size, self.hidden_dim)
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, run_mode):
         batch_size, seq_len = X.size()
         hidden = self._init_hidden(batch_size)
         X = self.word_embeddings(X)
@@ -77,8 +77,18 @@ class GRU(BaseModel):
         X = X.contiguous()
         X = X.view(-1, X.shape[2])
         X = self.hidden_to_tag(X)
-        tag_scores = F.log_softmax(X, dim=1)
-        return tag_scores
+
+        if run_mode == 'train':
+            tag_scores = F.log_softmax(X, dim=1)  # tag_scores的shape为[batch_size*seq_len, tagset_size]
+            # print('shape of tag_scores:{}'.format(tag_scores.shape))
+            return tag_scores
+        elif run_mode == 'eval' or 'test':
+            tag_scores = F.log_softmax(X, dim=1)
+            # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
+            predict = list(torch.max(tag_scores, dim=1)[1].numpy())  # [batch_size, seq_len]大小的列表
+            return predict
+        else:
+            raise RuntimeError("main.py调用model.run_model()时，参数'run_mode'未赋值！")
 
 
 if __name__ == '__main__':

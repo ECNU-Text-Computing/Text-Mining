@@ -14,6 +14,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.utils.rnn as rnn_utils
 
 sys.path.insert(0, '.')
 sys.path.insert(0, '..')
@@ -24,7 +25,6 @@ from sequence_labeling.utils.evaluate import Evaluator
 from .crf import CRF
 
 torch.manual_seed(1)
-
 
 class BiLSTM_CRF(nn.Module):
 
@@ -52,9 +52,9 @@ class BiLSTM_CRF(nn.Module):
         self.learning_rate = config['learning_rate']
         self.num_epochs = config['num_epochs']
 
+        self.crf = CRF(self.tagset_size, self.tag_to_ix)
         self.criterion_dict = {
-            'NLLLoss': torch.nn.NLLLoss,
-            'CrossEntropyLoss': torch.nn.CrossEntropyLoss
+            'Neg_Log_Likelihood': self.crf.neg_log_likelihood
         }
         self.criterion_name = config['criterion_name']
         if self.criterion_name not in self.criterion_dict:
@@ -79,34 +79,39 @@ class BiLSTM_CRF(nn.Module):
         self.n_directions = 2 if self.bidirectional else 1  # 双向循环，输出的hidden是正向和反向hidden的拼接，所以要 *2
         self.hidden_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tagset_size)
 
-        self.crf = CRF(self.tagset_size, self.tag_to_ix)
+
 
     def _init_hidden(self, batch_size):  # 初始化h_0
-        hidden = (torch.randn(self.num_layers * self.n_directions, batch_size, self.hidden_dim),
-                  torch.randn(self.num_layers * self.n_directions, batch_size, self.hidden_dim))
+        hidden = (torch.zeros(self.num_layers * self.n_directions, batch_size, self.hidden_dim),
+                  torch.zeros(self.num_layers * self.n_directions, batch_size, self.hidden_dim))
         return hidden
 
-    # 从三层网络中得到feats
     def forward(self, X, X_lengths, run_mode):
-        batch_size = 1  # 单句处理
+        batch_size, seq_len = X.size()
+        # batch_size = 1  # 单句处理
         hidden = self._init_hidden(batch_size)
-        X = self.word_embeddings(X).view(1, len(X), -1)
+        X = self.word_embeddings(X)
+        X = rnn_utils.pack_padded_sequence(X, X_lengths, batch_first=True)
         X, _ = self.lstm(X, hidden)
         # print("lstm_out shape:{}".format(X.shape))
-        X = X.view(-1, self.hidden_dim * 2)
+        X, _ = rnn_utils.pad_packed_sequence(X, batch_first=True)
+        X = X.contiguous()
+        X = X.view(-1, X.shape[2])
         # Get the emission scores from the BiLSTM
         lstm_feats = self.hidden_to_tag(X)
-        # viterbi解码得到预测
-        score, tag_seq = self.crf._viterbi_decode(lstm_feats)
 
         if run_mode == 'train':
             return lstm_feats
         elif run_mode == 'eval' or 'test':
-            return tag_seq
+            # print("lstm_feats shape:{}".format(lstm_feats.shape))
+            # viterbi解码得到预测
+            score, seqs_tag = self.crf._viterbi_decode(lstm_feats)
+            return seqs_tag
         else:
             raise RuntimeError("Parameter 'run_mode' need a value.")
 
     def run_model(self, model, run_mode, data_path):
+        # loss_function = self.criterion_dict[self.criterion_name]()
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
 
         if run_mode == 'train':
@@ -115,31 +120,36 @@ class BiLSTM_CRF(nn.Module):
             for epoch in range(self.num_epochs):
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
-                    for i in range(len(x)):  # 按条处理x中的数据
-                        batch_x = torch.LongTensor(x[i])
-                        batch_y = torch.LongTensor(y[i])
-                        model.zero_grad()
-                        tag_scores = model(batch_x, x_len, run_mode=run_mode)
-                        loss = self.crf.neg_log_likelihood(tag_scores, batch_y)
-                        loss.backward()
-                        optimizer.step()
+                    batch_x = torch.LongTensor(x)
+                    # print('batch_x shape: {}'.format(batch_x.shape))
+                    model.zero_grad()
+                    tag_scores = model(batch_x, x_len, run_mode=run_mode)
+                    # print('tag_score shape: {}'.format(tag_scores.shape))
+                    batch_y = torch.LongTensor(y)
+                    batch_y = batch_y.view(-1)
+                    loss = self.crf.neg_log_likelihood(tag_scores, batch_y)
+                    # loss = loss_function(tag_scores, batch_y)
+                    # print('Main Loss = {}'.format(loss))
+                    loss.backward()
+                    optimizer.step()
 
                 print('Done epoch {} of {}'.format(epoch + 1, self.num_epochs))
             model_save_path = self.data_root + self.model_save_path
             torch.save(model, '{}'.format(model_save_path))
         elif run_mode == 'eval' or 'test':
-            print('Running {} model. Testing...'.format(self.model_name))
+            print('Running {} model. {}ing...'.format(self.model_name, run_mode))
             model.eval()
             with torch.no_grad():
                 for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                    run_mode=run_mode):
-                    batch_x = torch.LongTensor(x[0])
-                    # print("After Train:", scores)
-                    # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
-                    y_predict = model(batch_x, x_len, run_mode=run_mode)
+                    batch_x = torch.tensor(x).long()
+                    y_predict = model(batch_x, x_len, run_mode)
                     y_predict = self.index_to_tag(y_predict)
                     print(y_predict)
-                    y_true = self.index_to_tag(y[0])
+
+                    # print正确的标注结果
+                    y_true = y.flatten()
+                    y_true = self.index_to_tag(y_true)
                     print(y_true)
 
                     # 输出评价结果
@@ -148,8 +158,9 @@ class BiLSTM_CRF(nn.Module):
             print("run_mode参数未赋值(train/eval/test)")
 
     def index_to_tag(self, y):
-        tag_index_dict = self.tag_to_ix
+        tag_index_dict = DataProcessor(**self.config).load_tags()
         index_tag_dict = dict(zip(tag_index_dict.values(), tag_index_dict.keys()))
+        # y = list(torch.tensor(y, dtype=int).view(-1).numpy())
         y_tagseq = []
         for i in range(len(y)):
             y_tagseq.append(index_tag_dict[y[i]])
