@@ -125,8 +125,8 @@ class BaseModel(nn.Module):
                 loss_list.append(total_loss)  # 记录评价结果
 
             n_batch = np.arange(1, len(loss_list) + 1, 1)
-            acc_list = np.array(loss_list)
-            plt.plot(n_batch, acc_list)
+            plot_loss_list = np.array(loss_list)
+            plt.plot(n_batch, plot_loss_list)
             plt.xlabel('Epoch')
             plt.ylabel('Loss')
             plt.grid()

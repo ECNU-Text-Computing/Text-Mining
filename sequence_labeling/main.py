@@ -16,6 +16,7 @@ from dl.base_model import BaseModel
 from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
+from dl.attndecoderrnn import AttnDecoderRNN
 
 ml_model_dict = {
 }
@@ -24,7 +25,8 @@ dl_model_dict = {
     'LSTM': BaseModel,
     'Bi-LSTM': BiLSTM,
     'GRU': GRU,
-    'BiLSTM_CRF': BiLSTM_CRF
+    'BiLSTM_CRF': BiLSTM_CRF,
+    'AttnRNN': AttnDecoderRNN
 }
 
 

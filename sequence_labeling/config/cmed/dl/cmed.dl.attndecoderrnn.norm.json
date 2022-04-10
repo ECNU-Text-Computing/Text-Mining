@@ -5,7 +5,8 @@
   "outputdata_file_name": "data.output",
   "dict_file_name": "vocab.json",
   "tags_file_name": "tags.json",
-  "model_save_name": "model.ckpt",
+  "encode_model_save_name": "encode_model.ckpt",
+  "decode_model_save_name": "decode_model.ckpt",
 
   "n_folds": 0,
   "shuffle": "True",
@@ -16,17 +17,19 @@
 
   "pad_token": "<PAD>",
 
-  "model_name": "BiLSTM_CRF",
-  "embedding_dim": 5,
-  "hidden_dim": 4,
-  "bidirectional": "True",
-  "num_layers=": 7,
-  "tag_size": 4,
+  "model_name": "AttnRNN",
+  "embedding_dim": 7,
+  "hidden_dim": 7,
+  "bidirectional": "False",
+  "num_layers=": 3,
+  "tag_size": 7,
   "dropout_rate": 0.5,
-  "learning_rate": 0.01,
+  "learning_rate": 0.05,
+  "max_length": 20,
 
   "num_epochs": 100,
   "batch_size": 8,
-  "criterion_name": "neg_log_likelihood",
+
+  "criterion_name": "NLLLoss",
   "optimizer_name": "Adam"
 }
