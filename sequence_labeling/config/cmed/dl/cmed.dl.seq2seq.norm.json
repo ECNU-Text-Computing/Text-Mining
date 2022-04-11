@@ -5,8 +5,8 @@
   "outputdata_file_name": "data.output",
   "dict_file_name": "vocab.json",
   "tags_file_name": "tags.json",
-  "encode_model_save_name": "attn_encode_model.ckpt",
-  "decode_model_save_name": "attn_decode_model.ckpt",
+  "encode_model_save_name": "seq2seq_encode_model.ckpt",
+  "decode_model_save_name": "seq2seq_decode_model.ckpt",
 
   "n_folds": 0,
   "shuffle": "True",
@@ -17,7 +17,7 @@
 
   "pad_token": "<PAD>",
 
-  "model_name": "AttnRNN",
+  "model_name": "Seq2Seq",
   "embedding_dim": 7,
   "hidden_dim": 7,
   "bidirectional": "False",
@@ -25,7 +25,6 @@
   "tag_size": 7,
   "dropout_rate": 0.3,
   "learning_rate": 0.02,
-  "max_length": 20,
 
   "num_epochs": 100,
   "batch_size": 8,
