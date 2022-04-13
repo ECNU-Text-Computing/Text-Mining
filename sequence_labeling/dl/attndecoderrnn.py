@@ -34,45 +34,22 @@ torch.manual_seed(1)
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(EncoderRNN, self).__init__()
-        self.hidden_size = hidden_size
+        self.hidden_dim = hidden_size
+        self.output_size = hidden_size
 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
+        self.out = nn.Linear(self.hidden_dim, self.output_size)
         print('Initialized EncoderRNN.')
 
     def forward(self, input, hidden):
         embedded = self.embedding(input).view(1, 1, -1)
-        output = embedded
-        output, hidden = self.gru(output, hidden)
+        output, hidden = self.gru(embedded, hidden)
+        output = F.log_softmax(self.out(output[0]), dim=1)
         return output, hidden
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
-
-
-class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size):
-        super(DecoderRNN, self).__init__()
-        self.hidden_size = hidden_size
-
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size)
-        self.out = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
-        print('Initialized DecoderRNN.')
-
-    def forward(self, input, hidden):
-        output = self.embedding(input).view(1, 1, -1)
-        output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
-        output = self.softmax(self.out(output[0]))
-        return output, hidden
-
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
-
-
-MAX_LENGTH = 20
+    def init_hidden(self):
+        return torch.zeros(1, 1, self.hidden_dim, device=device)
 
 
 class AttnDecoderRNN(nn.Module):
@@ -82,7 +59,6 @@ class AttnDecoderRNN(nn.Module):
         self.data_root = config['data_root']
         self.model_name = config['model_name']
         self.hidden_size = config['hidden_dim']
-        self.output_size = config['tag_size']
         self.dropout_p = config['dropout_rate']
         self.max_length = config['max_length']
         self.epochs = config['num_epochs']
@@ -91,6 +67,7 @@ class AttnDecoderRNN(nn.Module):
         vocab = DataProcessor(**self.config).load_vocab()
         self.vocab_size = len(vocab)
         tags = DataProcessor(**self.config).load_tags()
+        self.output_size = len(tags)
         self.SOS_token = tags['SOS']
         self.index_tag_dict = dict(zip(tags.values(), tags.keys()))
 
@@ -142,8 +119,10 @@ class AttnDecoderRNN(nn.Module):
     def run_model(self, model, run_mode, data_path):
         encoder = EncoderRNN(self.vocab_size, self.hidden_size).to(device)
         decoder = model.to(device)
-        encode_model_saved = self.data_root + self.config['encode_model_save_name']
-        decode_model_saved = self.data_root + self.config['decode_model_save_name']
+        encode_model_saved = '{}{}_{}_encode_model.ckpt'.format(self.data_root, type(encoder).__name__,
+                                                                type(decoder).__name__)
+        decode_model_saved = '{}{}_{}_decode_model.ckpt'.format(self.data_root, type(encoder).__name__,
+                                                                type(decoder).__name__)
 
         if run_mode == 'train':
             print('Running {} model. Training...'.format(self.model_name))
@@ -160,7 +139,8 @@ class AttnDecoderRNN(nn.Module):
 
             for iter in range(1, self.epochs + 1):
                 batch_num = 1
-                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path, run_mode=run_mode):
+                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+                                                                                   run_mode=run_mode):
                     for i in range(len(x)):
                         data_counter += 1
                         input_tensor = torch.tensor(x[i]).long().view(-1, 1)  # [seq_len ,1]
@@ -196,14 +176,15 @@ class AttnDecoderRNN(nn.Module):
             encoder.eval()
             decoder.eval()
             with torch.no_grad():
-                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path, run_mode=run_mode):
+                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+                                                                                   run_mode=run_mode):
                     y_predict = []
                     for i in range(len(x)):
                         input_tensor = torch.tensor(x[i]).long().view(-1, 1)  # [seq_len ,1]
                         input_length = input_tensor.size()[0]
-                        encoder_hidden = encoder.initHidden()
+                        encoder_hidden = encoder.init_hidden()
 
-                        encoder_outputs = torch.zeros(self.max_length, encoder.hidden_size, device=device)
+                        encoder_outputs = torch.zeros(self.max_length, encoder.hidden_dim, device=device)
 
                         for ei in range(input_length):
                             encoder_output, encoder_hidden = encoder(input_tensor[ei],
@@ -240,7 +221,7 @@ class AttnDecoderRNN(nn.Module):
 
     def model_train(self, input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer,
                     criterion):
-        encoder_hidden = encoder.initHidden()  # [1, 1, hidden_size]/[num_layers * num_directions, batch_size, hidden_size]
+        encoder_hidden = encoder.init_hidden()  # [1, 1, hidden_size]/[num_layers * num_directions, batch_size, hidden_size]
         # print('***train(), 开始decode***\nencoder_hidden的shape: {}'.format(encoder_hidden.shape))
 
         encoder_optimizer.zero_grad()
@@ -250,7 +231,7 @@ class AttnDecoderRNN(nn.Module):
         target_length = target_tensor.size(0)
         # print(target_tensor)
 
-        encoder_outputs = torch.zeros(self.config['max_length'], encoder.hidden_size, device=device)
+        encoder_outputs = torch.zeros(self.config['max_length'], encoder.hidden_dim, device=device)
         # print("按最大seq_len（20）定义encode_output，shape: {}".format(encoder_outputs.shape))
 
         loss = 0

@@ -31,10 +31,10 @@ class BaseModel(nn.Module):
     def __init__(self, **config):
         super(BaseModel, self).__init__()
         self.config = config
+        self.model_name = config['model_name']
         self.data_root = config['data_root']
         self.model_save_path = config['model_save_name']
         self.pad_token = config['pad_token']
-        self.model_name = config['model_name']
         self.embedding_dim = config['embedding_dim']
         self.hidden_dim = config['hidden_dim']
         self.tagset_size = config['tag_size']
@@ -60,8 +60,8 @@ class BaseModel(nn.Module):
 
         vocab = DataProcessor(**self.config).load_vocab()
         vocab_size = len(vocab)
-        padding_idx = vocab[self.pad_token]
-        self.word_embeddings = nn.Embedding(vocab_size, self.embedding_dim, padding_idx=padding_idx)
+        self.padding_idx = vocab[self.pad_token]
+        self.word_embeddings = nn.Embedding(vocab_size, self.embedding_dim, padding_idx=self.padding_idx)
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.

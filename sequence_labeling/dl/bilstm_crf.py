@@ -41,7 +41,7 @@ class BiLSTM_CRF(BaseModel):
         self.embedding_dim = config['embedding_dim']
         self.pad_token = config['pad_token']
         self.hidden_dim = config['hidden_dim']
-        self.num_layers = config['num_layers=']
+        self.num_layers = config['num_layers']
         self.learning_rate = config['learning_rate']
         self.num_epochs = config['num_epochs']
 

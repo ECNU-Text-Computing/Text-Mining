@@ -6,19 +6,19 @@
   "dict_file_name": "vocab.json",
   "tags_file_name": "tags.json",
 
-  "model_name": "AttnRNN",
+  "model_name": "S2S_decoder_gru",
   "embedding_dim": 7,
   "hidden_dim": 7,
   "bidirectional": "False",
-  "num_layers": 3,
+  "num_layers": 1,
   "dropout_rate": 0.3,
   "learning_rate": 0.02,
-  "max_length": 20,
+  "tag_size": 7,
 
   "pad_token": "<PAD>",
   "num_epochs": 100,
   "batch_size": 8,
-  "criterion_name": "NLLLoss",
+  "criterion_name": "CrossEntropyLoss",
   "optimizer_name": "Adam",
 
   "n_folds": 0,

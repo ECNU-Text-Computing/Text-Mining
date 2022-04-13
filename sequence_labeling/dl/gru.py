@@ -28,7 +28,7 @@ class GRU(BaseModel):
         self.embedding_dim = config['embedding_dim']
         self.hidden_dim = config['hidden_dim']
         self.bidirectional = True if config['bidirectional'] == 'True' else False
-        self.num_layers = config['num_layers=']
+        self.num_layers = config['num_layers']
         self.tagset_size = config['tag_size']
         self.num_epochs = config['num_epochs']
         self.batch_size = config['batch_size']

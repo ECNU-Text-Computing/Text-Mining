@@ -21,7 +21,7 @@
   "embedding_dim": 7,
   "hidden_dim": 7,
   "bidirectional": "False",
-  "num_layers=": 3,
+  "num_layers": 1,
   "tag_size": 7,
   "dropout_rate": 0.3,
   "learning_rate": 0.02,
@@ -29,6 +29,6 @@
   "num_epochs": 100,
   "batch_size": 8,
 
-  "criterion_name": "NLLLoss",
+  "criterion_name": "CrossEntropyLoss",
   "optimizer_name": "Adam"
 }
