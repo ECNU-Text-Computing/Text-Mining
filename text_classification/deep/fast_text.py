@@ -38,8 +38,8 @@ class FastText(Base_Model):
 
     def forward(self, x):
         out_word = self.embedding(x)   #生成用来表征文档的向量
-        out_bigram = self.embedding_ngram2(x)
-        out_trigram = self.embedding_ngram3(x)
+        out_bigram = self.embedding_ngram2(x)   #二元有问题
+        out_trigram = self.embedding_ngram3(x)  #三元有问题
         fasttext_out = torch.cat((out_word, out_bigram, out_trigram), -1)  #叠加所有词及n-gram的词向量
         #fasttext_out1 = torch.stack((out_word, out_bigram, out_trigram), 0)
         out = fasttext_out.mean(dim=1)  #跨列求平均
