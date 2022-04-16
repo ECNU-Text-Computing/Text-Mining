@@ -31,6 +31,7 @@ from text_classification.deep.text_rcnn import TextRCNN
 from text_classification.deep.text_dpcnn import TextDPCNN
 from text_classification.deep.text_fasttext import FastText
 from text_classification.deep.text_attention import Attention
+from text_classification.deep.text_selfattention import Self_Attention
 
 ml_model_dict = {
     'svm': SVM,
@@ -49,6 +50,7 @@ dl_model_dict = {
     'textdpcnn':TextDPCNN,
     'textfasttext':FastText,
     'textattention':Attention,
+    'textselfattention':Self_Attention,
 }
 
 
