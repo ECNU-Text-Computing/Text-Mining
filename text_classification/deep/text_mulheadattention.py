@@ -42,6 +42,8 @@ class Mul_HeadSA(Base_Model):
         self.num_heads = num_heads
         assert dim_k % num_heads == 0 and dim_v % num_heads == 0, "dim_k and dim_v must be multiple of num_heads"
         self._norm_fact = 1 / sqrt(dim_k // num_heads)
+        #输出层
+        self.fc = nn.Linear(dim_v,num_classes)
 
     def forward(self, x):
         # Text SelfAttention: input -> embedding -> 特征乘以三个多头变换后的矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
@@ -69,7 +71,11 @@ class Mul_HeadSA(Base_Model):
         att = torch.matmul(dist, v)  # batch, nh,  seq_len , dv
         #把多头进行拼接
         att = att.transpose(1, 2).reshape(batch, n, self.dim_v)  # batch, n, dim_v
-        print(att)
+        att = torch.sum(att, 1)  #[3,3]
+        #print(att.size())
+        att = F.relu(att)
+        att = self.fc(att)  # [3, 2] [batch_size,classes]
+        #print(att.size())
         return att
 
 if __name__ == '__main__':
