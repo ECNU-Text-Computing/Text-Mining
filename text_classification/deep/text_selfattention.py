@@ -44,6 +44,8 @@ class Self_Attention(Base_Model):
         self.k = nn.Linear(embed_dim, dim_k)
         self.v = nn.Linear(embed_dim, dim_v)
         self._norm_fact = 1 / sqrt(dim_k)  #开根号的倒数
+        #输出层
+        self.fc = nn.Linear(dim_v,num_classes)
 
     def forward(self, x):
         # Text SelfAttention: input -> embedding -> 特征乘以三个矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
@@ -55,17 +57,21 @@ class Self_Attention(Base_Model):
         print(x.size())
         # 此处将input的矩阵x进行线性变换得到Q,K,V
         Q = self.q(x)  # Q: batch_size * seq_len * dim_k  [3, 5, 4]
-        print(Q.size())
+        #print(Q.size())
         K = self.k(x)  # K: batch_size * seq_len * dim_k  [3, 5, 4]
-        print(K.size())
+        #print(K.size())
         V = self.v(x)  # V: batch_size * seq_len * dim_v  [3, 5, 5]
-        print(V.size())
+        #print(V.size())
         # 根据自注意力机制公式计算  #permute维度换位，将a的维度索引1和维度索引2调换位置
         atten = nn.Softmax(dim=-1)(
             torch.bmm(Q, K.permute(0, 2, 1))) * self._norm_fact  # Q * K.T() # batch_size * seq_len * seq_len
-        print(atten.size()) #[3, 5, 5]
+        #print(atten.size()) #[3, 5, 5]
         output = torch.bmm(atten, V)  # Q * K.T() * V # batch_size * seq_len * dim_v [3, 5, 5]
-        print(output.size())
+        output = torch.sum(output, 1)  #[3,5]
+        #print(output.size())
+        output = F.relu(output)
+        output = self.fc(output)  # [3, 2] [batch_size,classes]
+        #print(output.size())
         return output
 
 
