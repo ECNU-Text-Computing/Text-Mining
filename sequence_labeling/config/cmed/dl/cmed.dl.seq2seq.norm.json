@@ -1,4 +1,5 @@
 {
+  "model_name": "Seq2Seq",
   "data_name": "cmed",
   "data_root": "./Datasets/cmed/",
   "inputdata_file_name": "data.input",
@@ -8,16 +9,6 @@
   "encode_model_save_name": "seq2seq_encode_model.ckpt",
   "decode_model_save_name": "seq2seq_decode_model.ckpt",
 
-  "n_folds": 0,
-  "shuffle": "True",
-  "feature": "norm",
-  "split_rate": 0.7,
-  "cover_rate": 1,
-  "min_count": 0,
-
-  "pad_token": "<PAD>",
-
-  "model_name": "Seq2Seq",
   "embedding_dim": 7,
   "hidden_dim": 7,
   "bidirectional": "False",
@@ -28,7 +19,14 @@
 
   "num_epochs": 100,
   "batch_size": 8,
-
+  "pad_token": "<PAD>",
   "criterion_name": "CrossEntropyLoss",
-  "optimizer_name": "Adam"
+  "optimizer_name": "Adam",
+
+  "n_folds": 0,
+  "shuffle": "True",
+  "feature": "norm",
+  "split_rate": 0.7,
+  "cover_rate": 1,
+  "min_count": 0
 }

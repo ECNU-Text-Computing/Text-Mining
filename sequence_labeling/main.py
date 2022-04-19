@@ -16,9 +16,9 @@ from dl.base_model import BaseModel
 from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
-from dl.attndecoderrnn import AttnDecoderRNN
 from dl.seq2seq import DecoderRNN
-from dl.s2s_decoder_gru import DecoderGRU
+from dl.s2s_decoder_gru_b import DecoderGRU_B
+from dl.s2s_decoder_gru_attn_bmm import AttnDecoderRNN_bmm
 
 ml_model_dict = {
 }
@@ -29,8 +29,8 @@ dl_model_dict = {
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
     'Seq2Seq': DecoderRNN,
-    'AttnRNN': AttnDecoderRNN,
-    'S2S_decoder_gru': DecoderGRU
+    'AttnDecoderRNN_bmm': AttnDecoderRNN_bmm,
+    'S2S_decoder_gru_b': DecoderGRU_B
 }
 
 

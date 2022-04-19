@@ -230,7 +230,7 @@ class DecoderRNN(nn.Module):
 if __name__ == '__main__':
     # 以run方式运行，需要将配置文件中"data_root"的值修改为"../Datasets/cmed/"。
 
-    config_path = '../config/cmed/dl/cmed.dl.attndecoderrnn.norm.json'
+    config_path = '../config/cmed/dl/cmed.dl.s2s_docoder_gru_attn_bmm.norm.json'
     if not os.path.exists(config_path):
         raise RuntimeError("There is no {} config.".format(config_path))
     config = json.load(open(config_path, 'r'))

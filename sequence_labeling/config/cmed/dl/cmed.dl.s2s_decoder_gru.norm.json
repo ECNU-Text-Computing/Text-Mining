@@ -6,7 +6,7 @@
   "dict_file_name": "vocab.json",
   "tags_file_name": "tags.json",
 
-  "model_name": "S2S_decoder_gru",
+  "model_name": "S2S_decoder_gru_b",
   "embedding_dim": 7,
   "hidden_dim": 7,
   "bidirectional": "False",
@@ -16,9 +16,9 @@
   "tag_size": 7,
 
   "pad_token": "<PAD>",
-  "num_epochs": 100,
+  "num_epochs": 200,
   "batch_size": 8,
-  "criterion_name": "CrossEntropyLoss",
+  "criterion_name": "NLLLoss",
   "optimizer_name": "Adam",
 
   "n_folds": 0,
