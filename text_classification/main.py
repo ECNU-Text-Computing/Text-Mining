@@ -26,6 +26,12 @@ from text_classification.shallow.logistic_regression import LR
 from text_classification.shallow.random_forest import RandomForest
 from text_classification.deep.base_model import BaseModel
 from text_classification.deep.text_cnn import TextCNN
+from text_classification.deep.text_rnn import TextRNN
+from text_classification.deep.text_rcnn import TextRCNN
+from text_classification.deep.text_dpcnn import TextDPCNN
+from text_classification.deep.text_fasttext import FastText
+from text_classification.deep.text_attention import Attention
+from text_classification.deep.text_selfattention import Self_Attention
 
 ml_model_dict = {
     'svm': SVM,
@@ -38,7 +44,13 @@ ml_model_dict = {
 
 dl_model_dict = {
     'mlp': BaseModel,
-    'textcnn': TextCNN
+    'textcnn': TextCNN,
+     'textrnn':TextRNN,
+    'textrcnn':TextRCNN,
+    'textdpcnn':TextDPCNN,
+    'textfasttext':FastText,
+    'textattention':Attention,
+    'textselfattention':Self_Attention,
 }
 
 
