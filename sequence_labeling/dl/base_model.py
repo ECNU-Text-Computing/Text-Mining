@@ -4,7 +4,12 @@
 """
 Base_Model
 ======
-A class for something.
+A class for BaseModel for all basic deep learning models.
+配置文件：cmed.dl.base_model.norm.json
+forward(X, X_lengths)：
+    X：padding后的输入数据。2维列表，size = [batch_size, seq_len]
+    X_lengths: 输入数据的真实长度。1维列表，size = [batch_size]
+    返回值：tag_scores。2维张量，shape = [batch_size*seq_len, tags_size]
 """
 import argparse
 import datetime
@@ -34,10 +39,15 @@ class BaseModel(nn.Module):
         self.model_name = config['model_name']
         self.data_root = config['data_root']
         self.model_save_path = config['model_save_name']
-        self.pad_token = config['pad_token']
+
         self.embedding_dim = config['embedding_dim']
         self.hidden_dim = config['hidden_dim']
-        self.tagset_size = config['tag_size']
+        self.layers = config['num_layers']
+        self.bidirectional = True if config['bidirectional'] == 'True' else False
+        self.n_directions = 2 if self.bidirectional else 1
+        self.dropout_p = config['dropout_rate']
+        self.pad_token = config['pad_token']
+
         self.num_epochs = config['num_epochs']
         self.batch_size = config['batch_size']
         self.learning_rate = config['learning_rate']
@@ -58,112 +68,149 @@ class BaseModel(nn.Module):
         if self.optimizer_name not in self.optimizer_dict:
             raise ValueError("There is no optimizer_name: {}.".format(self.optimizer_name))
 
+        self.tag_index_dict = DataProcessor(**self.config).load_tags()
+        self.tags_size = len(self.tag_index_dict)
         vocab = DataProcessor(**self.config).load_vocab()
         vocab_size = len(vocab)
         self.padding_idx = vocab[self.pad_token]
-        self.word_embeddings = nn.Embedding(vocab_size, self.embedding_dim, padding_idx=self.padding_idx)
+        self.word_embeddings = nn.Embedding(num_embeddings=vocab_size, embedding_dim=self.embedding_dim,
+                                            padding_idx=self.padding_idx)
 
-        # The LSTM takes word embeddings as inputs, and outputs hidden states
-        # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim, 1, batch_first=True)
+        self.lstm = nn.LSTM(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=self.layers,
+                            bidirectional=self.bidirectional, batch_first=True)
 
-        # The linear layer that maps from hidden state space to tag space
-        self.hidden_to_tag = nn.Linear(self.hidden_dim, self.tagset_size)
+        # 将模型输出映射到标签空间
+        self.output_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tags_size)
 
-    def forward(self, X, X_lengths, run_mode):
+        print('完成类{}的初始化'.format(self.__class__.__name__))
+
+    def forward(self, X, X_lengths):
         batch_size, seq_len = X.size()
-        X = self.word_embeddings(X)
-        X = rnn_utils.pack_padded_sequence(X, X_lengths, batch_first=True)
-        X, _ = self.lstm(X)
-        X, _ = rnn_utils.pad_packed_sequence(X, batch_first=True)  # X的shape为[batch_size, seq_len, hidden_dim]
-        X = X.contiguous()
-        X = X.view(-1, X.shape[2])  # 将X降维为[batch_size*seq_len, hidden_dim]
-        X = self.hidden_to_tag(X)  # X的shape为[batch_size*seq_len, tagset_size]
+        embeded = self.word_embeddings(X)
+        embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
+        output, _ = self.lstm(embeded)  # [batch_size, seq_len, hidden_dim]
+        output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
+        out = output.contiguous()  # contiguous()执行强制拷贝,断开两个变量之间的依赖
+        out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, hidden_dim]
+        out = self.output_to_tag(out)  # [batch_size*seq_len, tags_size]
 
-        if run_mode == 'train':
-            tag_scores = F.log_softmax(X, dim=1)  # tag_scores的shape为[batch_size*seq_len, tagset_size]
-            # print('shape of tag_scores:{}'.format(tag_scores.shape))
-            return tag_scores
-        elif run_mode == 'eval' or 'test':
-            tag_scores = F.log_softmax(X, dim=1)
-            # print('标注结果转换为Tag索引序列：', torch.max(scores, dim=1))
-            predict = list(torch.max(tag_scores, dim=1)[1].numpy())  # [batch_size, seq_len]大小的列表
-            return predict
-        else:
-            raise RuntimeError("main.py调用model.run_model()时，参数'run_mode'未赋值！")
+        tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
 
+        return tag_scores
 
-    def run_model(self, model, run_mode, data_path):
+    def run_train(self, model):
+        print('Running {} model. Training...'.format(self.model_name))
+        run_mode = 'train'
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
+        model.train()
 
-        if run_mode == 'train':
-            print('Running {} model. Training...'.format(self.model_name))
-            model.train()
-            loss_list = []  # 记录每一batch的acc
-            for epoch in range(self.num_epochs):
-                total_loss = 0
-                batch_counter = 0  # batch计数器
-                train_data_num = 0  # 数据计数器
-                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
-                                                                                   run_mode=run_mode):
-                    batch_x = torch.tensor(x).long()
-                    # print('batch_x shape: {}'.format(batch_x.shape))
-                    model.zero_grad()
-                    tag_scores = model(batch_x, x_len, run_mode)
-                    batch_y = torch.tensor(y).long()
-                    batch_y = batch_y.view(-1)
-                    # print('batch_y shape: {}'.format(batch_y.shape))
-                    loss = self.criterion(tag_scores, batch_y)
-                    loss.backward()
-                    optimizer.step()
+        train_losses = []  # 记录每一batch的loss
+        valid_losses = []
+        best_valid_loss = float('inf')
+        for epoch in range(self.num_epochs):
+            train_loss = 0
+            train_data_num = 0
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+                                                                               run_mode=run_mode):
+                train_data_num += len(x)
+                batch_x = torch.tensor(x).long()
+                # print('batch_x shape: {}'.format(batch_x.shape))
+                model.zero_grad()
+                tag_scores = model(batch_x, x_len)
 
-                    total_loss += loss.item()
-                    batch_counter += 1
-                    train_data_num += len(x)
-                print("Done Epoch{}. Data_number = {}, Loss={}".format(epoch+1, train_data_num,
-                                                                       total_loss / train_data_num))
-                loss_list.append(total_loss)  # 记录评价结果
+                batch_y = torch.tensor(y).long()
+                batch_y = batch_y.view(-1)
+                # print('batch_y shape: {}'.format(batch_y.shape))
+                loss = self.criterion(tag_scores, batch_y)
+                loss.backward()
+                optimizer.step()
 
-            n_batch = np.arange(1, len(loss_list) + 1, 1)
-            plot_loss_list = np.array(loss_list)
-            plt.plot(n_batch, plot_loss_list)
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.grid()
-            plt.show()
+                train_loss += loss.item()
 
-            model_save_path = self.data_root + self.model_save_path
-            torch.save(model, '{}'.format(model_save_path))
-        elif run_mode == 'eval' or 'test':
-            print('Running {} model. {}ing...'.format(self.model_name, run_mode))
-            model.eval()
-            with torch.no_grad():
-                for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
-                                                                                   run_mode=run_mode):
+            train_losses.append(train_loss)  # 记录评价结果
 
-                    batch_x = torch.tensor(x).long()
-                    y_predict = model(batch_x, x_len, run_mode)
-                    y_predict = self.index_to_tag(y_predict)
-                    print(y_predict)
+            # 模型验证
+            eval_loss = self.evaluate(model)
+            print("Done Epoch{}. Eval_Loss={}".format(epoch + 1, eval_loss))
+            valid_losses.append(eval_loss)
 
-                    # print正确的标注结果
-                    y_true = y.flatten()
-                    y_true = self.index_to_tag(y_true)
-                    print(y_true)
+            # 保存参数最优的模型
+            if eval_loss < best_valid_loss:
+                best_valid_loss = eval_loss
+                model_save_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
+                torch.save(model, '{}'.format(model_save_path))
 
-                    # 输出评价结果
-                    print(Evaluator().classifyreport(y_true, y_predict))
-        else:
-            print("run_mode参数未赋值(train/eval/test)")
+        self.prtplot(train_losses)
+        self.prtplot(valid_losses)
+
+    def evaluate(self, model):
+        # print('Running {} model. Evaluating...'.format(self.model_name))
+        run_mode = 'eval'
+        model.eval()
+        eval_loss = 0
+        with torch.no_grad():
+            eval_data_num = 0
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+                                                                               run_mode=run_mode):
+                eval_data_num += len(x)
+                batch_x = torch.tensor(x).long()
+                tag_scores = model(batch_x, x_len)
+
+                batch_y = torch.tensor(y).long()
+                batch_y = batch_y.view(-1)
+                loss = self.criterion(tag_scores, batch_y)
+                eval_loss += loss.item()
+
+        return eval_loss
+
+    def test(self):
+        print('Running {} model. Testing...'.format(self.model_name))
+        run_mode = 'test'
+        best_model_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
+        model = torch.load(best_model_path)
+        model.eval()
+        test_loss = 0
+        with torch.no_grad():
+            test_data_num = 0
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+                                                                               run_mode=run_mode):
+                test_data_num += len(x)
+                batch_x = torch.tensor(x).long()
+                tag_scores = model(batch_x, x_len)
+
+                batch_y = torch.tensor(y).long()
+                batch_y = batch_y.view(-1)
+                loss = self.criterion(tag_scores, batch_y)
+                test_loss += loss.item()
+
+                # 返回每一行中最大值的索引
+                predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
+                y_predict = list(predict.numpy())
+                y_predict = self.index_to_tag(y_predict)
+                print(y_predict)
+
+                y_true = y.flatten()
+                y_true = self.index_to_tag(y_true)
+                print(y_true)
+
+                # 输出评价结果
+                print(Evaluator().classifyreport(y_true, y_predict))
 
     def index_to_tag(self, y):
-        tag_index_dict = DataProcessor(**self.config).load_tags()
-        index_tag_dict = dict(zip(tag_index_dict.values(), tag_index_dict.keys()))
-        # y = list(torch.tensor(y, dtype=int).view(-1).numpy())
+        index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
         y_tagseq = []
         for i in range(len(y)):
             y_tagseq.append(index_tag_dict[y[i]])
         return y_tagseq
+
+    def prtplot(self, y_axis_values):
+        x_axis_values = np.arange(1, len(y_axis_values) + 1, 1)
+        y_axis_values = np.array(y_axis_values)
+        plt.plot(x_axis_values, y_axis_values)
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.grid()
+        plt.show()
 
 
 if __name__ == '__main__':

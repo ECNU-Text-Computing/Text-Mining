@@ -4,7 +4,7 @@
 """
 main
 ======
-A class for something.
+The main class for sequence labeling.
 """
 
 import argparse
@@ -16,16 +16,16 @@ from dl.base_model import BaseModel
 from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
-from dl.seq2seq import DecoderRNN
-from dl.s2s_decoder_gru_b import DecoderGRU_B
 from dl.s2s_decoder_gru_attn_bmm import AttnDecoderRNN_bmm
+from dl.s2s_decoder_gru_b import DecoderGRU_B
+from dl.seq2seq import DecoderRNN
 
 ml_model_dict = {
 }
 
 dl_model_dict = {
     'LSTM': BaseModel,
-    'Bi-LSTM': BiLSTM,
+    'BiLSTM': BiLSTM,
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
     'Seq2Seq': DecoderRNN,
@@ -36,16 +36,14 @@ dl_model_dict = {
 
 def main_dl(config):
     if config['n_folds'] == 0:
-        data_path = '{}'.format(config['data_root'])
         model = dl_model_dict[model_name](**config)
         print(model)
-        model.run_model(model, run_mode='train', data_path=data_path)
-        model.run_model(model, run_mode='test', data_path=data_path)
+        model.run_train(model)
+        model.test()
     elif config['n_folds'] > 0:
         for n in range(config['n_folds']):
-            data_path = '{}{}/'.format(config['data_root'], n)
             model = dl_model_dict[model_name](**config)
-            model.run_model(model, run_mode='train', data_path=data_path)
+            model.run_train(model)
     else:
         raise RuntimeError("There is no n_folds in config.")
 

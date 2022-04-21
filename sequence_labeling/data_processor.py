@@ -31,18 +31,18 @@ class DataProcessor(object):
     # 生成训练集、验证集和测试集
     def generate_datasets(self):
         if self.n_folds == 0:
-            train_input, train_output, val_input, val_output, test_input, test_output = self.split_data()
+            train_input, train_output, eval_input, eval_output, test_input, test_output = self.split_data()
             train_inputdata_path = '{}{}.train'.format(self.data_root, self.inputdata_file_name)
             train_outputdata_path = '{}{}.train'.format(self.data_root, self.outputdata_file_name)
-            val_inputdata_path = '{}{}.val'.format(self.data_root, self.inputdata_file_name)
-            val_outputdata_path = '{}{}.val'.format(self.data_root, self.outputdata_file_name)
+            eval_inputdata_path = '{}{}.eval'.format(self.data_root, self.inputdata_file_name)
+            eval_outputdata_path = '{}{}.eval'.format(self.data_root, self.outputdata_file_name)
             test_inputdata_path = '{}{}.test'.format(self.data_root, self.inputdata_file_name)
             test_outputdata_path = '{}{}.test'.format(self.data_root, self.outputdata_file_name)
 
             self.save(train_input, train_inputdata_path)
             self.save(train_output, train_outputdata_path)
-            self.save(val_input, val_inputdata_path)
-            self.save(val_output, val_outputdata_path)
+            self.save(eval_input, eval_inputdata_path)
+            self.save(eval_output, eval_outputdata_path)
             self.save(test_input, test_inputdata_path)
             self.save(test_output, test_outputdata_path)
         else:
@@ -51,18 +51,18 @@ class DataProcessor(object):
                 if not os.path.exists(n_fold_dataset_path):
                     os.mkdir(n_fold_dataset_path)
 
-                train_input, train_output, val_input, val_output, test_input, test_output = self.split_data()
+                train_input, train_output, eval_input, eval_output, test_input, test_output = self.split_data()
                 train_inputdata_path = '{}{}.train'.format(n_fold_dataset_path, self.inputdata_file_name)
                 train_outputdata_path = '{}{}.train'.format(n_fold_dataset_path, self.outputdata_file_name)
-                val_inputdata_path = '{}{}.val'.format(n_fold_dataset_path, self.inputdata_file_name)
-                val_outputdata_path = '{}{}.val'.format(n_fold_dataset_path, self.outputdata_file_name)
+                eval_inputdata_path = '{}{}.eval'.format(n_fold_dataset_path, self.inputdata_file_name)
+                eval_outputdata_path = '{}{}.eval'.format(n_fold_dataset_path, self.outputdata_file_name)
                 test_inputdata_path = '{}{}.test'.format(n_fold_dataset_path, self.inputdata_file_name)
                 test_outputdata_path = '{}{}.test'.format(n_fold_dataset_path, self.outputdata_file_name)
 
                 self.save(train_input, train_inputdata_path)
                 self.save(train_output, train_outputdata_path)
-                self.save(val_input, val_inputdata_path)
-                self.save(val_output, val_outputdata_path)
+                self.save(eval_input, eval_inputdata_path)
+                self.save(eval_output, eval_outputdata_path)
                 self.save(test_input, test_inputdata_path)
                 self.save(test_output, test_outputdata_path)
 

@@ -31,7 +31,7 @@ def log_sum_exp(vec):
 class CRF(nn.Module):
     def __init__(self, tagset_size, tag_to_ix):
         super(CRF, self).__init__()
-        # tag_to_ix已添加"<START>"、"<STOP>"
+        # tag_to_ix已添加"SOS"、"EOS"
         self.tag_to_ix = tag_to_ix
         self.tagset_size = tagset_size
 
@@ -39,17 +39,17 @@ class CRF(nn.Module):
         self.transitions = nn.Parameter(
             torch.randn(self.tagset_size, self.tagset_size))
 
-        # 规则：任何状态都不能转移到'<START>','<STOP>'不能转移到其他状态
-        self.transitions.data[self.tag_to_ix["<START>"], :] = -10000
-        self.transitions.data[:, self.tag_to_ix["<STOP>"]] = -10000
+        # 规则：任何状态都不能转移到'SOS','EOS'不能转移到其他状态
+        self.transitions.data[self.tag_to_ix["SOS"], :] = -10000
+        self.transitions.data[:, self.tag_to_ix["EOS"]] = -10000
 
     # 计算配分函数Z(x)
     # Z(x)的作用：做全局归一化，解决标注偏置问题。其关键在于需要遍历所有路径。
     # Z(x)的计算：前向算法
     def _forward_alg(self, feats):
         init_alphas = torch.full((1, self.tagset_size), -10000.)
-        # START_TAG has all of the score.
-        init_alphas[0][self.tag_to_ix["<START>"]] = 0.
+        # SOS_TAG has all of the score.
+        init_alphas[0][self.tag_to_ix["SOS"]] = 0.
 
         # Wrap in a variable so that we will get automatic backprop
         # 初始状态的forward_var
@@ -72,7 +72,7 @@ class CRF(nn.Module):
                 # scores.
                 alphas_t.append(log_sum_exp(next_tag_var).view(1))
             forward_var = torch.cat(alphas_t).view(1, -1)
-        terminal_var = forward_var + self.transitions[self.tag_to_ix["<STOP>"]]  # 到第（t-1）step时6个标签的各自分数
+        terminal_var = forward_var + self.transitions[self.tag_to_ix["EOS"]]  # 到第（t-1）step时6个标签的各自分数
         alpha = log_sum_exp(terminal_var)
         return alpha
 
@@ -80,13 +80,13 @@ class CRF(nn.Module):
     def _score_sentence(self, feats, tags):
         # Gives the score of a provided tag sequence
         score = torch.zeros(1)
-        tags = torch.cat([torch.tensor([self.tag_to_ix["<START>"]], dtype=torch.long), tags])  # 将START_TAG的标签拼接到tag序列上
+        tags = torch.cat([torch.tensor([self.tag_to_ix["SOS"]], dtype=torch.long), tags])  # 将SOS_TAG的标签拼接到tag序列上
         for i, feat in enumerate(feats):
             # self.transitions[tags[i + 1], tags[i]]：第i时间步对应的标签转移到下一时间步对应标签的概率
-            # feat[tags[i+1]]：feats第i个时间步对应标签的score。之所以用i+1是要跳过tag序列开头的start
+            # feat[tags[i+1]]：feats第i个时间步对应标签的score。之所以用i+1是要跳过tag序列开头的SOS
             score = score + \
                     self.transitions[tags[i + 1], tags[i]] + feat[tags[i + 1]]
-        score = score + self.transitions[self.tag_to_ix["<STOP>"], tags[-1]]
+        score = score + self.transitions[self.tag_to_ix["EOS"], tags[-1]]
         return score
 
     # 维特比解码，给定输入x和相关参数(发射矩阵和转移矩阵)，获得概率最大的标签序列
@@ -95,7 +95,7 @@ class CRF(nn.Module):
 
         # Initialize the viterbi variables in log space 初始化
         init_vvars = torch.full((1, self.tagset_size), -10000.)
-        init_vvars[0][self.tag_to_ix["<START>"]] = 0
+        init_vvars[0][self.tag_to_ix["SOS"]] = 0
 
         # forward_var at step i holds the viterbi variables for step i-1
         forward_var = init_vvars
@@ -118,8 +118,8 @@ class CRF(nn.Module):
             forward_var = (torch.cat(viterbivars_t) + feat).view(1, -1)  # 从step0到step(i-1)时5个序列中每个序列的最大score
             backpointers.append(bptrs_t)
 
-        # Transition to STOP_TAG
-        terminal_var = forward_var + self.transitions[self.tag_to_ix["<STOP>"]]
+        # Transition to EOS_TAG
+        terminal_var = forward_var + self.transitions[self.tag_to_ix["EOS"]]
         best_tag_id = argmax(terminal_var)
         path_score = terminal_var[0][best_tag_id]
 
@@ -128,9 +128,9 @@ class CRF(nn.Module):
         for bptrs_t in reversed(backpointers):  # 从后向前走，找到一个best路径
             best_tag_id = bptrs_t[best_tag_id]
             best_path.append(best_tag_id)
-        # Pop off the start tag (we dont want to return that to the caller)
-        start = best_path.pop()
-        assert start == self.tag_to_ix["<START>"]  # Sanity check
+        # Pop off the SOS tag (we dont want to return that to the caller)
+        SOS = best_path.pop()
+        assert SOS == self.tag_to_ix["SOS"]  # Sanity check
         best_path.reverse()  # 把从后向前的路径正过来
         return path_score, best_path
 
