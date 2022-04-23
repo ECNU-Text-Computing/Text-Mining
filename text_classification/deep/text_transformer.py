@@ -1,0 +1,239 @@
+#! /user/bin/evn python
+# -*- coding:utf8 -*-
+
+"""
+TextTransformer
+======
+A class for something.
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+import sys
+import argparse
+import datetime
+import math
+from Deep.Base_Model import Base_Model
+import copy
+
+# Text Transformer: input -> embedding +position encoding -> encoder层 前向六个编码层 -> 前馈网络加和 -> 残差+归一化 ->
+# ->  embedding +position encoding -> decoder层 前向六个编码层 -> 前馈网络加和 -> 残差+归一化 -> linear和softmax归一化 输出
+class Transformer(Base_Model):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs):
+        super(Transformer, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+
+        self.pad_size=pad_size
+        self.num_encoder=num_encoder
+        self.num_head=num_head
+        # 位置编码
+        self.postion_embedding = Positional_Encoding(vocab_size, embed_dim, hidden_dim, num_classes,pad_size,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu)
+        self.encoder = Encoder(vocab_size, embed_dim, hidden_dim, num_classes,num_head,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu)
+        self.encoders = nn.ModuleList([
+            copy.deepcopy(self.encoder)
+            # Encoder(dim_model, num_head, hidden_dim, dropout_rate)
+            for _ in range(num_encoder)])
+
+        self.fc1 = nn.Linear(pad_size * embed_dim , num_classes)
+
+    def forward(self, x):
+        # embedding 层
+        out = self.embedding(x[0])
+        print(out.size())
+        out = self.postion_embedding(out)
+        print(out.size())
+        for encoder in self.encoders:
+            out = encoder(out)
+        out = out.view(out.size(0), -1)
+        print(out.size())
+        # out = torch.mean(out, 1)
+        out = self.fc1(out)
+        #print(out.size())
+        return out
+
+# encoder层 包括：注意力层和前馈网络
+class Encoder(Base_Model):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,num_head,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs):
+        super(Encoder, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+        self.num_head=num_head
+        self.attention = Multi_Head_Attention(vocab_size, embed_dim, hidden_dim, num_classes,num_head,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu)
+        self.feed_forward = Position_wise_Feed_Forward(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu)
+
+    def forward(self, x):
+        # 【batch_size,seq_len,embed_dim】
+        out = self.attention(x)  # [batch_size,num_head,seq_len,seq_len]
+        out = self.feed_forward(out)  # [batch_size,seq_len,embed_dim]
+        #print(out.size())
+        return out
+
+# 二维矩阵 【seq_len,embed_dim】
+class Positional_Encoding(Base_Model):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,pad_size,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0,max_len=200,**kwargs):
+        super(Positional_Encoding, self).__init__(vocab_size,embed_dim, num_classes,hidden_dim,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+        self.max_len=max_len
+        self.pad_size=pad_size
+        # pad是对短序列进行补全长度
+        self.pe = torch.tensor([[pos / (10000.0 ** (i // 2 * 2.0 / embed_dim)) for i in range(embed_dim)] for pos in range(pad_size)])
+        self.pe[:, 0::2] = np.sin(self.pe[:, 0::2])
+        self.pe[:, 1::2] = np.cos(self.pe[:, 1::2])
+        self.dropout = nn.Dropout(dropout_rate)
+
+    def forward(self, x):
+        out = x + nn.Parameter(self.pe, requires_grad=False)
+        out = self.dropout(out)
+        return out
+
+
+
+class Scaled_Dot_Product_Attention(Base_Model):
+    '''Scaled Dot-Product Attention '''
+    def __init__(self,vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs):
+        super(Scaled_Dot_Product_Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+
+
+    def forward(self, Q, K, V, scale=None):
+        '''
+        Args:
+            input： # [batch_size, len_q, embed_dim]
+            Q: [batch_size, len_Q, dim_Q]
+            K: [batch_size, len_K, dim_K]
+            V: [batch_size, len_V, dim_V]
+            scale: 缩放因子 论文为根号dim_K
+        Return:
+            self-attention后的张量，以及attention张量
+        '''
+
+        attention = torch.matmul(Q, K.permute(0, 2, 1))
+        if scale:
+            attention = attention * scale
+        #if mask:  # TODO change this
+            #attention = attention.masked_fill_(mask == 0, -1e9)
+        attention = F.softmax(attention, dim=-1)
+        context = torch.matmul(attention, V)  # 【batch_size,num_head,seq_len,dim_v】
+        #print(context.size())
+        return context
+
+
+class Multi_Head_Attention(Base_Model):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,num_head,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs):
+        super(Multi_Head_Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+        self.num_head = num_head
+        assert embed_dim % num_head == 0
+        self.dim_head = embed_dim // self.num_head  # 每个头的dim_head
+        self.fc_Q = nn.Linear(embed_dim, num_head * self.dim_head)
+        self.fc_K = nn.Linear(embed_dim, num_head * self.dim_head)
+        self.fc_V = nn.Linear(embed_dim, num_head * self.dim_head)
+        self.attention = Scaled_Dot_Product_Attention(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu)  # 点积注意力
+        self.fc = nn.Linear(num_head * self.dim_head, embed_dim)  # 线性变换
+        self.dropout_rate = nn.Dropout(dropout_rate)
+        self.layer_norm = nn.LayerNorm(embed_dim)  # 最后一层 标准化
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        Q = self.fc_Q(x)  # [batch_size, len_q, embed_dim]
+        K = self.fc_K(x)
+        V = self.fc_V(x)
+        # reshape
+        Q = Q.view(batch_size * self.num_head, -1, self.dim_head)  # [batch_size,num_head,seq_len, d_q]
+        K = K.view(batch_size * self.num_head, -1, self.dim_head)  # [batch_size,num_head,seq_len, d_q]
+        V = V.view(batch_size * self.num_head, -1, self.dim_head)  # [batch_size,num_head,seq_len, d_v]
+        # if mask:  # TODO
+        #     mask = mask.repeat(self.num_head, 1, 1)  # TODO change this
+        scale = K.size(-1) ** -0.5  # 缩放因子
+        context = self.attention(Q, K, V, scale)  # 运算
+
+        context = context.view(batch_size, -1, self.dim_head * self.num_head) # [batch_size,num_head,seq_len, d_v]
+        # 全连接
+        out = self.fc(context)  # [batch_size,seq_len, embed_dim]
+        out = self.dropout(out)
+        out = out + x  # 残差连接
+        out = self.layer_norm(out)  # # [batch_size,seq_len]
+        #print(out.size())
+        return out
+
+# 前馈网络 信息凝聚和维度转换
+class Position_wise_Feed_Forward(Base_Model):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs):
+        super(Position_wise_Feed_Forward, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu=0, **kwargs)
+        self.fc1 = nn.Linear(embed_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, embed_dim)
+        self.dropout = nn.Dropout(dropout_rate)
+        self.layer_norm = nn.LayerNorm(embed_dim)  # 归一化
+
+    def forward(self, x):
+        out = self.fc1(x)
+        out = F.relu(out)
+        out = self.fc2(out)  # 两层全连接
+        out = self.dropout(out)
+        out = out + x  # 残差连接
+        out = self.layer_norm(out)  # 【batch_size,seq_len,dim_model】
+        #print(out.size())
+        return out
+
+if __name__ == '__main__':
+    start_time = datetime.datetime.now()
+    parser = argparse.ArgumentParser(description='Process some description.')
+    parser.add_argument('--phase', default='test', help='the function name.')
+
+    args = parser.parse_args()
+
+    # python3 text_selfattention.py --phase test
+    if args.phase == 'test':
+        # For testing our model, we can set the hyper-parameters as follows.
+        vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,\
+        dropout_rate, learning_rate, num_epochs, batch_size,\
+        criterion_name, optimizer_name, gpu = 200, 128, 64, 2, 5,16,6,0.5, 0.0001, 3, 128, 'CrossEntropyLoss', 'Adam', 0
+
+        # new an objective.
+        model = Transformer(vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,
+                            dropout_rate, learning_rate, num_epochs, batch_size,
+                         criterion_name, optimizer_name, gpu)
+        # a simple example of the input.
+        input = [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
+        input = torch.LongTensor(input)  # input: [batch_size, seq_len] = [3, 5]
+
+        # the designed model can produce an output.
+        output= model(input)
+        print(output)
+        print('This is a test process.')
+    else:
+        print("There is no {} function. Please check your command.".format(args.phase))
+    end_time = datetime.datetime.now()
+    print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
+
+    print('Done Base_Model!')
