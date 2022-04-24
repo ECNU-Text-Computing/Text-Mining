@@ -16,9 +16,7 @@ from dl.base_model import BaseModel
 from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
-from dl.s2s_decoder_gru_attn_bmm import AttnDecoderRNN_bmm
-from dl.s2s_decoder_gru_b import DecoderGRU_B
-from dl.seq2seq import DecoderRNN
+from dl.s2s import SeqToSeq
 
 ml_model_dict = {
 }
@@ -28,9 +26,7 @@ dl_model_dict = {
     'BiLSTM': BiLSTM,
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
-    'Seq2Seq': DecoderRNN,
-    'AttnDecoderRNN_bmm': AttnDecoderRNN_bmm,
-    'S2S_decoder_gru_b': DecoderGRU_B
+    'SeqToSeq': SeqToSeq,
 }
 
 
@@ -38,6 +34,8 @@ def main_dl(config):
     if config['n_folds'] == 0:
         model = dl_model_dict[model_name](**config)
         print(model)
+        # model.run_model(model, 'train')
+        # model.run_model(model, 'test')
         model.run_train(model)
         model.test()
     elif config['n_folds'] > 0:
