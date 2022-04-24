@@ -1,0 +1,37 @@
+{
+  "model_name": "SeqToSeq",
+  "data_name": "cmed",
+  "data_root": "./Datasets/cmed/",
+  "inputdata_file_name": "data.input",
+  "outputdata_file_name": "data.output",
+  "dict_file_name": "vocab.json",
+  "tags_file_name": "tags.json",
+  "model_save_name": "model.ckpt",
+
+  "enc_embedding_dim": 5,
+  "enc_hidden_dim": 7,
+  "enc_bidirectional": "False",
+  "enc_layers": 1,
+  "enc_dropout_rate": 0.3,
+  "enc_learning_rate": 1e-3,
+
+  "dec_embedding_dim": 5,
+  "dec_hidden_dim": 7,
+  "dec_bidirectional": "False",
+  "dec_layers": 1,
+  "dec_dropout_rate": 0.3,
+  "dec_learning_rate": 1e-3,
+
+  "batch_size": 8,
+  "criterion_name": "NLLLoss",
+  "optimizer_name": "Adam",
+  "pad_token": "<PAD>",
+  "num_epochs": 500,
+
+  "n_folds": 0,
+  "shuffle": "True",
+  "feature": "norm",
+  "split_rate": 0.7,
+  "cover_rate": 1,
+  "min_count": 0
+}
