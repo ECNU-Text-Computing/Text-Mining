@@ -17,6 +17,7 @@ from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
 from dl.s2s import SeqToSeq
+from dl.s2s_dotproduct_attn import SeqToSeq_DotProductAttn
 
 ml_model_dict = {
 }
@@ -27,6 +28,7 @@ dl_model_dict = {
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
     'SeqToSeq': SeqToSeq,
+    'SeqToSeq_DotProduct_Attn': SeqToSeq_DotProductAttn
 }
 
 

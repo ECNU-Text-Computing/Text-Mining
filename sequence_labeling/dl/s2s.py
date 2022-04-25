@@ -65,16 +65,19 @@ class SeqToSeq(nn.Module):
         self.EOS_token = self.tag_index_dict['EOS']
         self.index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
 
+        # 编码器设置
         self.enc_embedding = nn.Embedding(self.vocab_size, self.enc_embedding_dim)
         self.enc_gru = nn.GRU(input_size=self.enc_embedding_dim, hidden_size=self.enc_hidden_dim,
                               num_layers=self.enc_layers, bidirectional=self.enc_bidirectional)
         self.enc_hidden_to_dec_hidden = nn.Linear(self.enc_hidden_dim * self.enc_n_directions, self.dec_hidden_dim)
 
+        # 解码器设置
         self.dec_embedding = nn.Embedding(self.tags_size, self.dec_embedding_dim)
         self.dec_gru = nn.GRU(input_size=self.dec_embedding_dim, hidden_size=self.dec_hidden_dim,
                               num_layers=self.dec_layers, bidirectional=self.dec_bidirectional)
         self.dec_output_to_tags = nn.Linear(self.dec_hidden_dim * self.dec_n_directions, self.tags_size)
 
+        # 评价函数和优化器
         self.criterion_dict = {
             'NLLLoss': torch.nn.NLLLoss,
             'CrossEntropyLoss': torch.nn.CrossEntropyLoss
@@ -98,6 +101,7 @@ class SeqToSeq(nn.Module):
         trg_tensor = torch.LongTensor(trg).transpose(0, 1)
         batch_size, seq_len = src_tensor.size()
 
+        # 编码
         enc_init_hidden = self.init_hidden_enc(batch_size)
         enc_embedded = self.enc_embedding(src_tensor).transpose(0, 1)  # [seq_len, batch-size, enc_embedding_dim]
         enc_output, enc_hidden = self.enc_gru(enc_embedded, enc_init_hidden)
@@ -108,6 +112,7 @@ class SeqToSeq(nn.Module):
         else:
             enc_hidden = self.enc_hidden_to_dec_hidden(enc_hidden[-1, :, :])
 
+        # 解码
         dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size)  # 保存解码所有时间步的output
         dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1)
         dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1)  # [batch_size, 1]
@@ -225,3 +230,7 @@ class SeqToSeq(nn.Module):
         plt.ylabel('Loss')
         plt.grid()
         plt.show()
+
+
+if __name__ == '__main__':
+    print(sys.modules)
