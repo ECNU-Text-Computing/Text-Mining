@@ -16,23 +16,24 @@ import argparse
 import datetime
 import math
 from Deep.Base_Model import Base_Model
+from torch.autograd import Variable
 import copy
 
 # Text Transformer: input -> embedding +position encoding -> encoder层 前向六个编码层 -> 前馈网络加和 -> 残差+归一化 ->
 # ->  embedding +position encoding -> decoder层 前向六个编码层 -> 前馈网络加和 -> 残差+归一化 -> linear和softmax归一化 输出
 class Transformer(Base_Model):
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,num_head,num_encoder,
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu=0, **kwargs):
         super(Transformer, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
 
-        self.pad_size=pad_size
+
         self.num_encoder=num_encoder
         self.num_head=num_head
         # 位置编码
-        self.postion_embedding = Positional_Encoding(vocab_size, embed_dim, hidden_dim, num_classes,pad_size,
+        self.postion_embedding = Positional_Encoding(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu)
         self.encoder = Encoder(vocab_size, embed_dim, hidden_dim, num_classes,num_head,
@@ -43,21 +44,20 @@ class Transformer(Base_Model):
             # Encoder(dim_model, num_head, hidden_dim, dropout_rate)
             for _ in range(num_encoder)])
 
-        self.fc1 = nn.Linear(pad_size * embed_dim , num_classes)
+        self.fc1 = nn.Linear(embed_dim , num_classes)
 
     def forward(self, x):
         # embedding 层
-        out = self.embedding(x[0])
-        print(out.size())
+        out=self.embedding(x)
         out = self.postion_embedding(out)
-        print(out.size())
+        #print(out.size())
         for encoder in self.encoders:
             out = encoder(out)
-        out = out.view(out.size(0), -1)
-        print(out.size())
-        # out = torch.mean(out, 1)
-        out = self.fc1(out)
         #print(out.size())
+        out = torch.mean(out, 1)
+        #print(out.size())
+        out = self.fc1(out)
+        print(out.size())
         return out
 
 # encoder层 包括：注意力层和前馈网络
@@ -67,7 +67,7 @@ class Encoder(Base_Model):
                  criterion_name, optimizer_name, gpu=0, **kwargs):
         super(Encoder, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
         self.num_head=num_head
         self.attention = Multi_Head_Attention(vocab_size, embed_dim, hidden_dim, num_classes,num_head,
                  dropout_rate, learning_rate, num_epochs, batch_size,
@@ -85,26 +85,34 @@ class Encoder(Base_Model):
 
 # 二维矩阵 【seq_len,embed_dim】
 class Positional_Encoding(Base_Model):
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,pad_size,
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0,max_len=200,**kwargs):
+                 criterion_name, optimizer_name, gpu=0,max_len=500,**kwargs):
         super(Positional_Encoding, self).__init__(vocab_size,embed_dim, num_classes,hidden_dim,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
         self.max_len=max_len
-        self.pad_size=pad_size
-        # pad是对短序列进行补全长度
-        self.pe = torch.tensor([[pos / (10000.0 ** (i // 2 * 2.0 / embed_dim)) for i in range(embed_dim)] for pos in range(pad_size)])
-        self.pe[:, 0::2] = np.sin(self.pe[:, 0::2])
-        self.pe[:, 1::2] = np.cos(self.pe[:, 1::2])
-        self.dropout = nn.Dropout(dropout_rate)
+        # 初始化一个位置矩阵
+        pe = torch.zeros(max_len, embed_dim)
+        # 初始化一个绝对位置矩阵
+        position = torch.arange(0, max_len).unsqueeze(1)
+        # 变换矩阵 #【1*embed_dim】 帮助绝对位置编码矩阵能够所缩放
+        div_term = torch.exp(torch.arange(0, embed_dim, 2) *
+                             -(math.log(10000.0) / embed_dim))
+        #print(div_term.size())
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        # 拓展维度
+        pe = pe.unsqueeze(0)
+        #print(pe.size())
+        # 将pe注册成模型的buffer
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
-        out = x + nn.Parameter(self.pe, requires_grad=False)
-        out = self.dropout(out)
-        return out
-
-
+        x = x + Variable(self.pe[:,:x.size(1)],
+                         requires_grad=False)  # 对第二维切片，使得维度相同
+        #print(x.size())
+        return self.dropout(x)
 
 class Scaled_Dot_Product_Attention(Base_Model):
     '''Scaled Dot-Product Attention '''
@@ -113,7 +121,7 @@ class Scaled_Dot_Product_Attention(Base_Model):
                  criterion_name, optimizer_name, gpu=0, **kwargs):
         super(Scaled_Dot_Product_Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
 
 
     def forward(self, Q, K, V, scale=None):
@@ -145,7 +153,7 @@ class Multi_Head_Attention(Base_Model):
                  criterion_name, optimizer_name, gpu=0, **kwargs):
         super(Multi_Head_Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
         self.num_head = num_head
         assert embed_dim % num_head == 0
         self.dim_head = embed_dim // self.num_head  # 每个头的dim_head
@@ -189,7 +197,7 @@ class Position_wise_Feed_Forward(Base_Model):
                  criterion_name, optimizer_name, gpu=0, **kwargs):
         super(Position_wise_Feed_Forward, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu=0, **kwargs)
+                 criterion_name, optimizer_name, gpu, **kwargs)
         self.fc1 = nn.Linear(embed_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, embed_dim)
         self.dropout = nn.Dropout(dropout_rate)
@@ -215,12 +223,12 @@ if __name__ == '__main__':
     # python3 text_selfattention.py --phase test
     if args.phase == 'test':
         # For testing our model, we can set the hyper-parameters as follows.
-        vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,\
+        vocab_size, embed_dim, hidden_dim, num_classes,num_head,num_encoder,\
         dropout_rate, learning_rate, num_epochs, batch_size,\
-        criterion_name, optimizer_name, gpu = 200, 128, 64, 2, 5,16,6,0.5, 0.0001, 3, 128, 'CrossEntropyLoss', 'Adam', 0
+        criterion_name, optimizer_name, gpu = 200, 128, 64, 2,16,6,0.5, 0.0001, 3, 128, 'CrossEntropyLoss', 'Adam', 0
 
         # new an objective.
-        model = Transformer(vocab_size, embed_dim, hidden_dim, num_classes,pad_size,num_head,num_encoder,
+        model = Transformer(vocab_size, embed_dim, hidden_dim, num_classes,num_head,num_encoder,
                             dropout_rate, learning_rate, num_epochs, batch_size,
                          criterion_name, optimizer_name, gpu)
         # a simple example of the input.

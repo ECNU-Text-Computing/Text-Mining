@@ -1,18 +1,17 @@
 {
   "data_name": "aapr",
 
-  "model_name": "texttransformer",
+  "model_name": "bert",
   "input_shape": [100],
-  "embed_dim": 32,
-  "hidden_dim": 64,
+  "embed_dim": 128,
+  "hidden_dim": 768,
+  "num_filters": 128,
+  "filter_sizes": [2, 3, 4],
   "num_classes": 2,
   "dropout_rate": 0.5,
-  "learning_rate": 0.001,
+  "learning_rate": 0.0001,
   "num_epochs": 10,
-  "num_encoder": 6,
-  "num_head": 8,
-
-  "batch_size": 8,
+  "batch_size": 128,
   "criterion_name": "CrossEntropyLoss",
   "optimizer_name": "Adam",
   "gpu": 0,
@@ -25,5 +24,7 @@
   "cover_rate": 1,
   "min_count": 0,
 
-  "metrics_num":4
+  "pad_size":3 2, 
+
+  "metrics_num": 4
 }
