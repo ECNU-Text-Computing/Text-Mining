@@ -42,10 +42,10 @@ class DataLoader:
 
         # print("Load input data from {}.".format(input_path))
         # print("Load output data from {}.".format(output_path))
-        with open(input_data_path, 'r') as fp:
+        with open(input_data_path, 'r', encoding='utf-8') as fp:
             input_data = fp.readlines()
 
-        with open(output_data_path, 'r') as fp:
+        with open(output_data_path, 'r', encoding='utf-8') as fp:
             output_data = fp.readlines()
 
         if self.shuffle:
@@ -113,13 +113,14 @@ if __name__ == '__main__':
     config_path = './config/cmed/dl/cmed.dl.base_model.norm.json'
     if not os.path.exists(config_path):
         raise RuntimeError("There is no {} config.".format(config_path))
-    config = json.load(open(config_path, 'r'))
+    config = json.load(open(config_path, 'r', encoding='utf-8'))
     print('config: ', config)
 
     data_path = '{}'.format(config['data_root'])
 
     loader = DataLoader(**config)
-    for batch_x_padded, x_lengths_original, batch_y_padded, y_lengths_original in loader.data_generator(data_path= data_path, run_mode='train'):
+    for batch_x_padded, x_lengths_original, batch_y_padded, y_lengths_original in loader.data_generator(
+            data_path=data_path, run_mode='train'):
         print(batch_x_padded)
         print(batch_y_padded)
 

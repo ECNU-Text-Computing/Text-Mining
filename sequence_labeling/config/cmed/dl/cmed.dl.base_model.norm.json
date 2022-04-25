@@ -16,15 +16,15 @@
   "pad_token": "<PAD>",
 
   "model_name": "LSTM",
-  "embedding_dim": 5,
-  "hidden_dim": 6,
-  "num_layers": 1,
-  "bidirectional": "False",
+  "embedding_dim": 64,
+  "hidden_dim": 128,
+  "num_layers": 2,
+  "bidirectional": "Ture",
   "dropout_rate": 0.5,
 
-  "num_epochs": 100,
-  "batch_size": 8,
-  "learning_rate": 0.01,
+  "num_epochs": 10,
+  "batch_size": 32,
+  "learning_rate": 1e-3,
   "criterion_name": "NLLLoss",
   "optimizer_name": "Adam"
 }

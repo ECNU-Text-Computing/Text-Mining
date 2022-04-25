@@ -5,6 +5,7 @@
 model: BiLSTM
 ======
 A class for BiLSTM.
+配置文件：cmed.dl.bilstm.norm.json
 """
 import argparse
 import datetime

@@ -5,6 +5,7 @@
 BiLSTM_CRF
 ======
 A class for BiLSTM_CRF.
+配置文件：cmed.dl.bilstm_crf.norm.json
 """
 
 import argparse

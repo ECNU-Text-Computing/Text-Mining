@@ -109,7 +109,7 @@ class BaseModel(nn.Module):
         best_valid_loss = float('inf')
         for epoch in range(self.num_epochs):
             train_loss = 0
-            train_data_num = 0
+            train_data_num = 0  # 统计数据量
             for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
                                                                                run_mode=run_mode):
                 train_data_num += len(x)
@@ -187,11 +187,11 @@ class BaseModel(nn.Module):
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
                 y_predict = list(predict.numpy())
                 y_predict = self.index_to_tag(y_predict)
-                print(y_predict)
+                # print(y_predict)
 
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
-                print(y_true)
+                # print(y_true)
 
                 # 输出评价结果
                 print(Evaluator().classifyreport(y_true, y_predict))

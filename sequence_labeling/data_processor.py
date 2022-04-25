@@ -68,9 +68,9 @@ class DataProcessor(object):
 
     # 将data.input和data.output划分为训练集、验证集和测试集
     def split_data(self):
-        with open(self.data_root + self.inputdata_file_name, 'r') as fp:
+        with open(self.data_root + self.inputdata_file_name, 'r', encoding='utf-8') as fp:
             data_input = list(map(lambda x: x.strip(), fp.readlines()))
-        with open(self.data_root + self.outputdata_file_name, 'r') as fp:
+        with open(self.data_root + self.outputdata_file_name, 'r', encoding='utf-8') as fp:
             data_output = list(map(lambda x: x.strip(), fp.readlines()))
 
         data = list(zip(data_input, data_output))
@@ -94,7 +94,7 @@ class DataProcessor(object):
     # 将数据存入文件
     def save(self, data, filepath):
         count = 0
-        with open(filepath, 'w') as fw:
+        with open(filepath, 'w', encoding='utf-8') as fw:
             for line in data:
                 fw.write(line + '\n')
                 count += 1
@@ -106,7 +106,7 @@ class DataProcessor(object):
 
         word_count_dict = {}
         total_word_count = 0
-        with open(data_input_path, 'r') as fp:
+        with open(data_input_path, 'r', encoding='utf-8') as fp:
             for line in fp.readlines():
                 for word in line.strip().split():
                     total_word_count += 1
@@ -128,14 +128,14 @@ class DataProcessor(object):
         print("There are {} words finally.".format(len(word_dict)))
 
         word_dict_path = self.data_root + self.dict_file_name
-        with open(word_dict_path, 'w') as fw:
+        with open(word_dict_path, 'w', encoding='utf-8') as fw:
             json.dump(word_dict, fw)
         print("Successfully save word dict to {}.".format(word_dict_path))
 
     # 读取vocab.json的内容，返回值为{}类型。
     def load_vocab(self):
         word_dict_path = self.data_root + self.dict_file_name
-        with open(word_dict_path, 'r') as fp:
+        with open(word_dict_path, 'r', encoding='utf-8') as fp:
             word_dict = json.load(fp)
             # print("Load word dict from {}.".format(word_dict_path))
             return word_dict
@@ -143,7 +143,7 @@ class DataProcessor(object):
     # 读取tags.json的内容，返回值为{}类型。
     def load_tags(self):
         tagfile_path = self.data_root + self.tags_file_name
-        with open(tagfile_path, 'r') as tfp:
+        with open(tagfile_path, 'r', encoding='utf-8') as tfp:
             tags_dict = json.load(tfp)
             # print("Load Tags dict from {}.".format(tagfile_path))
             return tags_dict
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     config_path = './config/cmed/dl/cmed.dl.base_model.norm.json'
     if not os.path.exists(config_path):
         raise RuntimeError("There is no {} config.".format(config_path))
-    config = json.load(open(config_path, 'r'))
+    config = json.load(open(config_path, 'r', encoding='utf-8'))
     print('config: ', config)
 
     data_processor = DataProcessor(**config)

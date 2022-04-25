@@ -5,6 +5,7 @@
 model: GRU
 ======
 A class for GRU.
+配置文件：cmed.dl.gru.norm.json
 """
 
 import argparse
