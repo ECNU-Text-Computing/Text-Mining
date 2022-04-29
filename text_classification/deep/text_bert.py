@@ -10,7 +10,7 @@ A class for something.
     1、https://blog.csdn.net/weixin_42237487/article/details/112355703
     2、https://github.com/649453932/Bert-Chinese-Text-Classification-Pytorch
 
-注意：需要下载谷歌中文BERT预训练模型，代码中对应修改self.bert_path的保存路径
+注意：①需要下载谷歌中文BERT预训练模型，代码中对应修改self.bert_path的保存路径；②增加testdata.txt文件作为测试数据
 
 BERT特点：
     1、BERT可以解决词的情态表征，解决一词多义问题。
@@ -26,11 +26,23 @@ BERT的输入：input
     2、Segment Embedding：词的句子级特征嵌入，针对双句子输入任务，做句子A，B嵌入，针对单句子任务，只做句子A嵌入
     3、Position Embedding：词的位置特征，针对中文，目前最大长度为 512
 
-LSTM的输出：MLM或NSP
-    1、ontput(seq_len, batch, num_directions * hidden_size)保存了最后一层，每个time_step的输出,最后一项output[:, -1, :]
-    2、hn(num_layers * num_directions, batch, hidden_size)最后时刻的隐藏状态
-    3、cn(num_layers * num_directions, batch, hidden_size)最后时刻的单元状态，一般用不到
+BERT的下游任务：MLM或NSP
+    1、MLM：掩码语言模型
+    2、NSP：句子连贯性判断
 ======
+
+[MASK] ：表示这个词被遮挡。需要带着[]，并且mask是大写，对应的编码是103
+[SEP]: 表示分隔开两个句子。对应的编码是102
+[CLS]:用于分类场景，该位置可表示整句话的语义。对应的编码是101
+[UNK]：文本中的元素不在词典中，用该符号表示生僻字。对应编码是100
+[PAD]：针对有长度要求的场景，填充文本长度，使得文本长度达到要求。对应编码是0
+
+======
+
+两个包更改的东西
+pytorch_pretrained_bert：bert_config.json；131-135
+transformers：config.json；127-129
+
 """
 
 import os
@@ -43,9 +55,16 @@ import torch.nn.functional as F
 import numpy as np
 from utils.metrics import cal_all
 from Deep.Base_Model import Base_Model
-from pytorch_pretrained_bert import BertModel, BertTokenizer
+from tqdm import tqdm
+#from pytorch_pretrained_bert import BertModel, BertTokenizer
+from transformers import BertModel, BertTokenizer
+
+
+
 
 #BERT文本分类
+
+PAD, CLS = '[PAD]', '[CLS]'  # padding符号, bert中综合信息符号
 
 class BERT(Base_Model):
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
@@ -56,7 +75,7 @@ class BERT(Base_Model):
                  criterion_name, optimizer_name, gpu, **kwargs)
 
         self.require_improvement = 1000                 # 若超过1000batch效果还没提升，则提前结束训练
-        self.pad_size = 32                              # 每句话处理成的长度(短填长切),测试文件时没法调用config文件，所以直接设置
+        self.pad_size = 10                               # 每句话处理成的长度(短填长切),测试文件时没法调用config文件，所以直接设置
         #self.pad_size = kwargs['pad_size']             # 可从config文件里设置
         self.bert_path = 'F:/2-PostGraduate/2022.3.1Text-Mining/code/Text_Mining-20220329/Text_Mining/Deep/bert_pretrain'
         self.tokenizer = BertTokenizer.from_pretrained(self.bert_path)   # bert切分词
@@ -65,31 +84,55 @@ class BERT(Base_Model):
         for param in self.bert.parameters():
             param.requires_grad = True
 
-        self.fc = nn.Linear(self.hidden_dim, self.num_classes)   #直接分类
+        self.fc = nn.Linear(self.hidden_dim, self.num_classes)   # 直接分类
 
-        # self.output = nn.Sequential(
-        #     nn.Dropout(0.2),
-        #     nn.Linear(768 + embed_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, num_classes)
-        # )
 
-    def forward(self, x):
-         context = x  # 输入的句子
-         mask = x[2]  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]
-         mask = torch.unsqueeze(mask, 0)
-         _, pooled = self.bert(context, attention_mask=mask, output_all_encoded_layers=False)
-         #output_all_encoded_layers=True时，12层Transformer的结果全返回，存在第一个列表中，每个encoder_output的大小为[batch_size, sequence_length, hidden_size]
-         #pool_out = [batch_size, hidden_size]，取了最后一层Transformer的输出结果的第一个单词[cls]的hidden states，其已经蕴含了整个input句子的信息了
-         out = self.fc(pooled)
+    def load_dataset(self, path):
+        pad_size = self.pad_size
+        contents = []
+        with open(path, 'r', encoding='UTF-8') as f:
+            for line in tqdm(f):
+                lin = line.strip()
+                if not lin:
+                    continue
+                #content, label = lin.split('\t')
+                content = lin
+                token = self.tokenizer.tokenize(content)
+                #token = [CLS] + token
+                seq_len = len(token)
+                mask = []
+                token_ids = self.tokenizer.convert_tokens_to_ids(token)
 
-         return out
+                if pad_size:
+                    if len(token) < pad_size:
+                        mask = [1] * len(token_ids) + [0] * (pad_size - len(token))
+                        token_ids += ([0] * (pad_size - len(token)))
+                    else:
+                        mask = [1] * pad_size
+                        token_ids = token_ids[:pad_size]
+                        seq_len = pad_size
+                #contents.append((token_ids, int(label), seq_len, mask))
+                contents.append((token_ids, seq_len, mask))
+        return contents
 
-    # def forward(self, seqs, features):
-    #     _, pooled = self.bert(seqs, output_all_encoded_layers=False)
-    #     concat = torch.cat([pooled, features], dim=1)
-    #     logits = self.output(concat)
-    #     return logits
+
+
+    def forward(self, x, mask):
+
+        context = x  # 输入的句子
+        mask = mask  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]，使用时的mask作用？
+
+        outputs = self.bert(context, attention_mask=mask)
+        pooled = outputs[1]
+        out = self.fc(pooled)
+
+        #用from pytorch_pretrained_bert时的输出
+        #_, pooled = self.bert(context, attention_mask=mask, output_all_encoded_layers=False)
+        # output_all_encoded_layers=True时，12层Transformer的结果全返回，存在第一个列表中，每个encoder_output的大小为[batch_size, sequence_length, hidden_size]
+        # pool_out = [batch_size, hidden_size]，取了最后一层Transformer的输出结果的第一个单词[cls]的hidden states，其已经蕴含了整个input句子的信息了
+        #out = self.fc(pooled)
+
+        return out
 
 
 if __name__ == '__main__':
@@ -112,11 +155,23 @@ if __name__ == '__main__':
                                dropout_rate, learning_rate, num_epochs, batch_size,
                                criterion_name, optimizer_name, gpu)
         # a simple example of the input.
-        input = [[1, 2, 3, 4, 0], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
-        input = torch.LongTensor(input)  # input: [batch_size, seq_len] = [3, 5]
+        input = model.load_dataset(
+            r'F:\2-PostGraduate\2022.3.1Text-Mining\code\Text_Mining-20220329\Text_Mining\Deep\bert_pretrain\testdata.txt')
+        #应该输入文本的序列，用tokenizer变成id序列
+        m = len(input)
 
+        x = [] # 取第一行
+        for i in range(m):
+            x.append(input[i][0])
+        x = torch.LongTensor(x)     # x: [batch_size, seq_len] = [3, 10]
+
+        mask = []
+        for i in range(m):
+            mask.append(input[i][2])
+        mask = torch.LongTensor(mask)     # mask: 掩码，每一个句子的长度，如[5,9,7]
         # the designed model can produce an output.
-        output = model(input)
+
+        output = model(x, mask)
         print(output)
         print('Done!')
 
