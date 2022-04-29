@@ -33,7 +33,7 @@ class DataLoader:
         self.padding_idx = vocab[self.pad_token]
 
     # 依据词典、标签索引将input、output数据转化为向量
-    # 参数run_mode的值为“train”、“val”或“test”
+    # 参数run_mode的值为“train”、“eval”或“test”
     def data_generator(self, data_path, run_mode):
         input_data_path = '{}{}.{}'.format(data_path, self.inputdata_file_name, run_mode)
         output_data_path = '{}{}.{}'.format(data_path, self.outputdata_file_name, run_mode)
@@ -52,6 +52,10 @@ class DataLoader:
             data = list(zip(input_data, output_data))
             random.shuffle(data)
             input_data, output_data = zip(*data)
+
+        # 验证、测试时取全部数据
+        if run_mode in "eval test":
+            self.batch_size = len(output_data)
 
         for i in range(0, len(output_data), self.batch_size):
             # 构建batch数据，并向量化

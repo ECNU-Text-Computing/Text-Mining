@@ -1,21 +1,27 @@
-# 运行
-python main.py --phase cmed.dl.base_model.norm
+# 概述
+sequence_labeling模块用于支持序列标注。其中，
+config；模型运行时的参数配置，每个模型对应1个json文件
+Datasets：运行数据，包括原始数据(data.input, data.output)，训练集(data.input.train, data.output.train)，验证集(data.input.eval, data.output.eval)，测试集(data.input.test, data.output.test)，标签字典(tags)，字/词典(vocab)，模型。
+dl：Deep Learning模型
+sl：Statistic Learning模型，待开发
+utils：目前只有评价模型(evaluate.py)
+data_loader.py: 生成批处理数据
+data_processor.py：生成训练集、验证集、测试集、字典
+main.py：模型运行主入口
 
-# 增加2022.04.04
-增加BiLSTM的实现。BiLSTM在整体上与LSTM基本相同，但需注意以下3点：
-1. nn.LSTM()中，bidirectional=True；
-2. nn.Linear()中，hidden_size*2；
-3. 若初始化隐藏层参数，参数各维的含义和大小为 (num_layers*2, batch_size, hidden_dim)。按批传入的数据如果少于batch_size，应按batch的实际大小初始化h0，否则将报错。因此，调用init_hidden()时应传入参数。
-4. 运行前，需要在main.py的dl_model_dict = {}中增加一行'Bi-LSTM': BiLSTM。
+# 开发和运行
+IDE工具：pycharm
+环境: python 3.8, pytorch, seqeval.metrics
+运行：
+step1: 运行data_processor.py，生成相关数据（tags.json需要人工编辑）
+step2: 在Terminal中进入sequence_labeling目录
+step3: 在Terminal中输入指令，形如 “python main.py --phase 配置文件名”运行模型
+       例如：python main.py --phase cmed.dl.gru.norm
 
-# 修改2022.04.02
-1. 所有模块运行所需参数均从config中调用
-2. 模型可按批处理数据
-3. 问题：有意义的Tag只有BIO三种。但是，为了实现在一批中长短不一字符串的处理，增加了"<PAD>"。LSTM的输出种类应该设为3还是4？如果设为3，运行时出现IndexError: Target 3 is out of bounds.错误。
+# 数据
+input、output文件中的数据一一对应。
+目前data.input、data.output中的数据为CCKS的片段。
+以字符为单元，以‘ ’（空格）切分。
 
-# 修改2022.03.28
-1. 增加评价模块utils.evaluate。
-2. dataProcessor模块中增加split_data()，其调用save()将数据保存至文件。
-3. dataLoader模块的data_generator()增加参数run_mode，其值为“train”、“val”或“test”。增加该参数的原因在于，baseModel模块的run_Model()（原为train_model()）在不同阶段运行不同数据文件中的数据。为此，以run_mode标识处理阶段，并作为需调用的数据文档名称最后一部分的标识。
-4. baseModel模块的run_Model()增加参数run_mode，原因见上述说明。
-5. baseModel模块增加index_to_tag()，其功能为将输出的预测结果转换为BIO形式的标签。注意，utils.evaluate评价指标计算函数的输入为BIO或BIEOS形式的标签。
+# 标注集
+BIO。为了适应各种模型，增加了"<PAD>"、"UNK"、"SOS"、"EOS"。

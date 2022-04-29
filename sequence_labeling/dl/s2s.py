@@ -56,9 +56,9 @@ class SeqToSeq(nn.Module):
         self.dec_dropout_p = config['dec_dropout_rate']
         self.dec_learning_rate = config['dec_learning_rate']
 
-        vocab = DataProcessor(**config).load_vocab()
-        self.vocab_size = len(vocab)
-        self.padding_idx = vocab[self.pad_token]
+        self.vocab = DataProcessor(**config).load_vocab()
+        self.vocab_size = len(self.vocab)
+        self.padding_idx = self.vocab[self.pad_token]
         self.tag_index_dict = DataProcessor(**self.config).load_tags()
         self.tags_size = len(self.tag_index_dict)
         self.SOS_token = self.tag_index_dict['SOS']
@@ -82,7 +82,7 @@ class SeqToSeq(nn.Module):
             'NLLLoss': torch.nn.NLLLoss,
             'CrossEntropyLoss': torch.nn.CrossEntropyLoss
         }
-        self.criterion = self.criterion_dict[config['criterion_name']]()
+        self.criterion = self.criterion_dict[config['criterion_name']](ignore_index=0)
 
         self.optimizer_dict = {
             'SGD': torch.optim.SGD,
@@ -122,8 +122,9 @@ class SeqToSeq(nn.Module):
             dec_output = self.dec_output_to_tags(dec_output.view(-1, dec_output.shape[-1]))  # [batch_size, tags_size]
             dec_output = nn.functional.log_softmax(dec_output, dim=1)
             dec_outputs[t] = dec_output
-            top1 = dec_output.argmax(1)
-            dec_input = top1.unsqueeze(1).detach()
+            dec_input = trg_tensor[t].unsqueeze(1)
+            # top1 = dec_output.argmax(1)
+            # dec_input = top1.unsqueeze(1).detach()
 
             loss += self.criterion(dec_output, trg_tensor[t])
 
@@ -156,19 +157,19 @@ class SeqToSeq(nn.Module):
             plot_losses.append(average_loss.item())  # loss是tensor，用item()取出值
 
             # 模型评价
-            eval_loss, f1_score = self.evaluate(model)
+            eval_loss = self.evaluate(model)
             if eval_loss < best_valid_loss:
                 best_valid_loss = eval_loss
                 torch.save(model, '{}'.format(model_saved))
-            print("Done Epoch {}. train_average_loss = {}".format(epoch, average_loss))
+            print("Done Epoch {}. Eval_loss = {}".format(epoch + 1, eval_loss))
         self.pltshow(plot_losses)
 
     def evaluate(self, model):
         # print('Running {} model. Evaluating...'.format(self.model_name))
         run_mode = 'eval'
-        average_loss, f1 = self.eval_process(model, run_mode)
+        eval_loss, _, _ = self.eval_process(model, run_mode)
 
-        return average_loss, f1
+        return eval_loss
 
     def test(self):
         print('Running {} model. Testing...'.format(self.model_name))
@@ -176,19 +177,19 @@ class SeqToSeq(nn.Module):
         model_saved = '{}{}_decoder.ckpt'.format(self.data_root, self.model_name)
         model = torch.load(model_saved)
 
-        average_loss, f1 = self.eval_process(model, run_mode)
+        test_loss, target_labels, predict_labels = self.eval_process(model, run_mode)
+        print(Evaluator().classifyreport(target_labels, predict_labels))
 
     def eval_process(self, model, run_mode):
         model.eval()
         with torch.no_grad():
             sum_loss = 0
             counter = 0
-            batch_num = 0
             for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
                                                                                run_mode=run_mode):
                 loss, dec_outputs = model(x, y)
 
-                # 累加batch的loss，返回值为每条数据的平均loss（sum_loss / counter）
+                # 累加batch的loss。若返回值用每条数据的平均loss，则sum_loss / counter
                 sum_loss += loss
                 counter += len(x)
 
@@ -209,12 +210,11 @@ class SeqToSeq(nn.Module):
                 target_labels = self.index_to_tag(target_labels)
 
                 f1_score = Evaluator().f1score(target_labels, predict_labels)
-                batch_num += 1
-                print('第{}批测试数据， f1_score = {}'.format(batch_num, f1_score))
+                print('{}数据， f1_score = {}'.format(run_mode, f1_score))
 
                 # print(Evaluator().classifyreport(target_labels, predict_labels))
 
-        return sum_loss / counter, f1_score
+        return sum_loss, target_labels, predict_labels
 
     def index_to_tag(self, y):
         y_tagseq = []

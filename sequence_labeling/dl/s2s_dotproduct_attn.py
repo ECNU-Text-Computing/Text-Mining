@@ -75,8 +75,9 @@ class SeqToSeq_DotProductAttn(SeqToSeq):
             dec_output = self.dec_output_to_tags(dec_output.view(-1, dec_output.shape[-1]))  # [batch_size, tags_size]
             dec_output = nn.functional.log_softmax(dec_output, dim=1)
             dec_outputs[t] = dec_output
-            top1 = dec_output.argmax(1)
-            dec_input = top1.unsqueeze(1).detach()
+            dec_input = trg_tensor[t].unsqueeze(1)
+            # top1 = dec_output.argmax(1)
+            # dec_input = top1.unsqueeze(1).detach()
 
             loss += self.criterion(dec_output, trg_tensor[t])
 

@@ -18,6 +18,11 @@ from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
 from dl.s2s import SeqToSeq
 from dl.s2s_dotproduct_attn import SeqToSeq_DotProductAttn
+from dl.self_attention import Self_Attention
+from dl.self_attention_multihead import Self_Attention_Multi_Head
+from dl.transformer import Transformer
+from dl.mlp import MLP
+from dl.cnn import CNN
 
 ml_model_dict = {
 }
@@ -27,8 +32,13 @@ dl_model_dict = {
     'BiLSTM': BiLSTM,
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
+    'MLP': MLP,
+    'CNN': CNN,
+    'Self_Attn': Self_Attention,
+    'Self_Attn_Multi_Head': Self_Attention_Multi_Head,
     'SeqToSeq': SeqToSeq,
-    'SeqToSeq_DotProduct_Attn': SeqToSeq_DotProductAttn
+    'SeqToSeq_DotProduct_Attn': SeqToSeq_DotProductAttn,
+    'Transformer': Transformer
 }
 
 
