@@ -4,7 +4,7 @@
 """
 model: Self_Attention_MultiHead
 ======
-A class for Self_Attention.
+A class for MultiHead Self_Attention.
 配置文件：cmed.dl.self_attn_multihead.norm.json
 参考资料：超详细图解Self-Attention(https://zhuanlan.zhihu.com/p/410776234)
 """
@@ -15,8 +15,8 @@ from math import sqrt
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, '.')
-sys.path.insert(0, '..')
+sys.path.insert(0, '../../tmp')
+sys.path.insert(0, '../..')
 from sequence_labeling.dl.base_model import BaseModel
 
 
@@ -46,7 +46,7 @@ class Self_Attention_Multi_Head(BaseModel):
         self.drop = nn.Dropout(self.dropout_p)
         self.relu = nn.ReLU()
 
-    def forward(self, x, x_lengths):
+    def forward(self, x, x_lengths, y):
         x = self.word_embeddings(x)  # x: batch_size * seq_len * input_dim
 
         Q = self.q(x).reshape(-1, x.shape[0], x.shape[1], self.dim_k // self.nums_head)

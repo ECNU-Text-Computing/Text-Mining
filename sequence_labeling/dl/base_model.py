@@ -70,10 +70,12 @@ class BaseModel(nn.Module):
 
         self.tag_index_dict = DataProcessor(**self.config).load_tags()
         self.tags_size = len(self.tag_index_dict)
-        vocab = DataProcessor(**self.config).load_vocab()
-        vocab_size = len(vocab)
-        self.padding_idx = vocab[self.pad_token]
-        self.word_embeddings = nn.Embedding(num_embeddings=vocab_size, embedding_dim=self.embedding_dim,
+        self.vocab = DataProcessor(**self.config).load_vocab()
+        self.vocab_size = len(self.vocab)
+        self.padding_idx = self.vocab[self.pad_token]
+        self.padding_idx_tags = self.tag_index_dict[self.pad_token]
+
+        self.word_embeddings = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embedding_dim,
                                             padding_idx=self.padding_idx)
 
         self.lstm = nn.LSTM(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=self.layers,
@@ -82,16 +84,15 @@ class BaseModel(nn.Module):
         # 将模型输出映射到标签空间
         self.output_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tags_size)
 
-        print('完成类{}的初始化'.format(self.__class__.__name__))
+        # print('完成类{}的初始化'.format(self.__class__.__name__))
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, Y):
         batch_size, seq_len = X.size()
         embeded = self.word_embeddings(X)
         embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
         output, _ = self.lstm(embeded)  # [batch_size, seq_len, hidden_dim]
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
-        out = output.contiguous()  # contiguous()执行强制拷贝,断开两个变量之间的依赖
-        out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, hidden_dim]
+        out = output.reshape(-1, output.shape[2])  # 降维为[batch_size*seq_len, hidden_dim]
         out = self.output_to_tag(out)  # [batch_size*seq_len, tags_size]
 
         tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
@@ -114,74 +115,74 @@ class BaseModel(nn.Module):
                                                                                run_mode=run_mode):
                 train_data_num += len(x)
                 batch_x = torch.tensor(x).long()
-                # print('batch_x shape: {}'.format(batch_x.shape))
-                model.zero_grad()
-                tag_scores = model(batch_x, x_len)
-
                 batch_y = torch.tensor(y).long()
+
+                tag_scores = model(batch_x, x_len, batch_y)
+
                 batch_y = batch_y.view(-1)
-                # print('batch_y shape: {}'.format(batch_y.shape))
                 loss = self.criterion(tag_scores, batch_y)
+
+                model.zero_grad()
                 loss.backward()
                 optimizer.step()
 
                 train_loss += loss.item()
 
-            train_losses.append(train_loss)  # 记录评价结果
+            train_losses.append(train_loss / train_data_num)  # 记录评价结果
 
             # 模型验证
-            eval_loss = self.evaluate(model)
-            print("Done Epoch{}. Eval_Loss={}".format(epoch + 1, eval_loss))
-            valid_losses.append(eval_loss)
+            avg_eval_loss = self.evaluate(model)
+            print("Done Epoch{}. Eval_Loss={}".format(epoch + 1, avg_eval_loss))
+            valid_losses.append(avg_eval_loss)
 
             # 保存参数最优的模型
-            if eval_loss < best_valid_loss:
-                best_valid_loss = eval_loss
+            if avg_eval_loss < best_valid_loss:
+                best_valid_loss = avg_eval_loss
                 model_save_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
                 torch.save(model, '{}'.format(model_save_path))
 
-        self.prtplot(train_losses)
+        print('train_losses: {}'.format(train_losses))
+        print('eval_losses: {}'.format(valid_losses))
+        # self.prtplot(train_losses)
         self.prtplot(valid_losses)
 
     def evaluate(self, model):
         # print('Running {} model. Evaluating...'.format(self.model_name))
         run_mode = 'eval'
-        model.eval()
-        eval_loss = 0
-        with torch.no_grad():
-            eval_data_num = 0
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
-                                                                               run_mode=run_mode):
-                eval_data_num += len(x)
-                batch_x = torch.tensor(x).long()
-                tag_scores = model(batch_x, x_len)
 
-                batch_y = torch.tensor(y).long()
-                batch_y = batch_y.view(-1)
-                loss = self.criterion(tag_scores, batch_y)
-                eval_loss += loss.item()
+        avg_loss, y_true, y_predict = self.eval_process(model, run_mode)
+        # ****************
+        print(Evaluator().f1score(y_true, y_predict))
 
-        return eval_loss
+        return avg_loss
 
     def test(self):
         print('Running {} model. Testing...'.format(self.model_name))
         run_mode = 'test'
         best_model_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
         model = torch.load(best_model_path)
+
+        avg_loss, y_true, y_predict = self.eval_process(model, run_mode)
+
+        # 输出评价结果
+        print(Evaluator().classifyreport(y_true, y_predict))
+
+    def eval_process(self, model, run_mode):
         model.eval()
-        test_loss = 0
+        total_loss = 0
         with torch.no_grad():
-            test_data_num = 0
+            data_num = 0
             for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
                                                                                run_mode=run_mode):
-                test_data_num += len(x)
+                data_num += len(x)
                 batch_x = torch.tensor(x).long()
-                tag_scores = model(batch_x, x_len)
-
                 batch_y = torch.tensor(y).long()
+
+                tag_scores = model(batch_x, x_len, batch_y)
+
                 batch_y = batch_y.view(-1)
                 loss = self.criterion(tag_scores, batch_y)
-                test_loss += loss.item()
+                total_loss += loss.item()
 
                 # 返回每一行中最大值的索引
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
@@ -192,9 +193,7 @@ class BaseModel(nn.Module):
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
                 # print(y_true)
-
-                # 输出评价结果
-                print(Evaluator().classifyreport(y_true, y_predict))
+            return total_loss / data_num, y_true, y_predict
 
     def index_to_tag(self, y):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))

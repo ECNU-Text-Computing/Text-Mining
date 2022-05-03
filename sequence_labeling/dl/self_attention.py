@@ -44,7 +44,7 @@ class Self_Attention(BaseModel):
         self.drop = nn.Dropout(self.dropout_p)
         self.relu = nn.ReLU()
 
-    def forward(self, x, x_lengths):
+    def forward(self, x, x_lengths, y):
         x = self.word_embeddings(x)  # x: batch_size * seq_len * input_dim
 
         Q = self.q(x)  # Q: batch_size * seq_len * dim_k

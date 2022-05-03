@@ -29,21 +29,19 @@ class GRU(BaseModel):
         super().__init__(**config)
 
         self.gru = nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim,
-                          num_layers=self.layers, batch_first=True, bidirectional=self.bidirectional,
-                          dropout=self.dropout_p)  # GRU循环神经网络
+                          num_layers=self.layers, batch_first=True, bidirectional=self.bidirectional)  # GRU循环神经网络
 
     def _init_hidden(self, batch_size):
         return torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim)
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, Y):
         batch_size, seq_len = X.size()
         hidden = self._init_hidden(batch_size)
         embeded = self.word_embeddings(X)
         embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
         output, _ = self.gru(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
-        out = output.contiguous()
-        out = out.view(-1, out.shape[2])
+        out = output.reshape(-1, output.shape[2])
         out = self.output_to_tag(out)
 
         tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]

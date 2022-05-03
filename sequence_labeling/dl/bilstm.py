@@ -32,15 +32,14 @@ class BiLSTM(BaseModel):
                   torch.randn(self.layers * self.n_directions, batch_size, self.hidden_dim))
         return hidden
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, Y):
         batch_size, seq_len = X.size()
         hidden = self._init_hidden(batch_size)
         embeded = self.word_embeddings(X)
         embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
         output, _ = self.lstm(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
-        out = output.contiguous()
-        out = out.view(-1, out.shape[2])
+        out = output.reshape(-1, output.shape[2])
         out = self.output_to_tag(out)
 
         tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]

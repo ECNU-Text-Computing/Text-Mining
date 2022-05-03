@@ -38,7 +38,7 @@ class CNN(BaseModel):
         self.fc = nn.Linear(in_features=self.out_channels * len(self.window_sizes),
                             out_features=self.tags_size)
 
-    def forward(self, x, x_lengths):
+    def forward(self, x, x_lengths, y):
         embedded = self.word_embeddings(x)
         # [batch_size, seq_len, embedding_dim]  -> [batch_size, embedding_dim, seq_len]
         embedded = embedded.permute(0, 2, 1)
@@ -48,8 +48,7 @@ class CNN(BaseModel):
         out = out.transpose(1, 2)
         out = self.fc(out)
 
-        output = out.contiguous()
-        output = out.view(-1, output.size(2))
+        output = out.reshape(-1, out.size(2))
         tag_scores = F.log_softmax(output, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores

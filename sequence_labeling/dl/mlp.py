@@ -34,17 +34,17 @@ class MLP(BaseModel):
         self.layer2 = nn.Sequential(nn.Linear(self.layer1_dim, self.layer2_dim), nn.ReLU(), self.dropout)
         self.layer3 = nn.Sequential(nn.Linear(self.layer2_dim, self.layer3_dim), nn.ReLU(), self.dropout)
         self.layer4 = nn.Sequential(nn.Linear(self.layer3_dim, self.layer4_dim), nn.ReLU(), self.dropout)
-        self.layer5 = nn.Sequential(nn.Linear(self.layer3_dim, self.tags_size))
+        self.layer5 = nn.Sequential(nn.Linear(self.layer4_dim, self.tags_size))
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, Y):
         embedded = self.word_embeddings(X)
         out = self.layer1(embedded)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
+        # out = self.layer2(out)
+        # out = self.layer3(out)
+        # out = self.layer4(out)
         out = self.layer5(out)
 
-        out = out.view(-1, out.shape[2])
-        tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
+        output = out.reshape(-1, out.shape[2])
+        tag_scores = F.log_softmax(output, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores

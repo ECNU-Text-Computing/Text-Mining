@@ -7,10 +7,9 @@ Class: SeqToSeq_DotProductAttn
     实现DotProduct Attention，父类为s2s.py中的SeqToSeq.
     初始化参数: **config
     forward()：
-        输入：src: 2维列表，[batch_size, seq_len]
-            trg: 2维列表.[batch_size, seq_len]
-        输出：loss: 1个batch的loss，值为tensor,用item()转化为标量值
-            dec_outputs: [seq_len, batch_size, self.tags_size], 保存decoder所有时间步的output
+        输入：src: 2维张量，[batch_size, seq_len]
+            trg: 2维张量.[batch_size, seq_len]
+        输出：output: [batch_size*seq_len, tags_size], 保存decoder所有时间步的输出
 """
 
 import sys
@@ -33,10 +32,10 @@ class SeqToSeq_DotProductAttn(SeqToSeq):
         self.attn_combine = nn.Linear(self.dec_embedding_dim + self.enc_hidden_dim * self.enc_n_directions,
                                       self.dec_embedding_dim)
 
-    def forward(self, src, trg):
+    def forward(self, src, src_lengths, trg):
         loss = 0
-        src_tensor = torch.LongTensor(src)
-        trg_tensor = torch.LongTensor(trg).transpose(0, 1)
+        src_tensor = src
+        trg_tensor = trg.transpose(0, 1)
         batch_size, seq_len = src_tensor.size()
 
         # 编码
@@ -72,16 +71,20 @@ class SeqToSeq_DotProductAttn(SeqToSeq):
 
             # decoder
             dec_output, dec_hidden = self.dec_gru(dec_input, dec_hidden)
-            dec_output = self.dec_output_to_tags(dec_output.view(-1, dec_output.shape[-1]))  # [batch_size, tags_size]
-            dec_output = nn.functional.log_softmax(dec_output, dim=1)
-            dec_outputs[t] = dec_output
+
             dec_input = trg_tensor[t].unsqueeze(1)
             # top1 = dec_output.argmax(1)
             # dec_input = top1.unsqueeze(1).detach()
 
-            loss += self.criterion(dec_output, trg_tensor[t])
+            dec_output = self.dec_output_to_tags(
+                dec_output.reshape(-1, dec_output.shape[-1]))  # [batch_size, tags_size]
+            dec_output = nn.functional.log_softmax(dec_output, dim=1)
+            dec_outputs[t] = dec_output
 
-        return loss, dec_outputs
+        dec_outputs = dec_outputs.transpose(0, 1)
+        output = dec_outputs.reshape(-1, dec_outputs.shape[2])
+
+        return output
 
 
 if __name__ == '__main__':

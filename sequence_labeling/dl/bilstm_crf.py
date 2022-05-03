@@ -39,16 +39,17 @@ class BiLSTM_CRF(BaseModel):
                   torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
         return hidden
 
-    def forward(self, X, X_lengths):
+    def forward(self, X, X_lengths, Y):
         batch_size, seq_len = X.size()
         hidden = self._init_hidden(batch_size)
         embeded = self.word_embeddings(X)
         embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
         output, _ = self.lstm(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
-        out = output.contiguous()
-        out = out.view(-1, out.shape[2])
+        out = output.reshape(-1, output.shape[2])  # [batch_size*seq_len, tags_size]
         out = self.output_to_tag(out)
+
+        out = torch.nn.functional.log_softmax(out, dim=1)
 
         return out
 
@@ -65,22 +66,22 @@ class BiLSTM_CRF(BaseModel):
                                                                                run_mode=run_mode):
                 test_data_num += len(x)
                 batch_x = torch.tensor(x).long()
-                tag_scores = model(batch_x, x_len)
-
-                output = torch.nn.functional.log_softmax(tag_scores, dim=1)  # [batch_size*seq_len, tags_size]
                 batch_y = torch.tensor(y).long()
+
+                tag_scores = model(batch_x, x_len, y)
+
                 batch_y = batch_y.view(-1)
-                loss = self.criterion(output, batch_y)
+                loss = self.criterion(tag_scores, batch_y)
                 test_loss += loss.item()
 
                 # viterbi解码得到预测。seqs_tag为标签的索引序列。
                 score, seqs_tag = self.crf._viterbi_decode(tag_scores)
                 y_predict = self.index_to_tag(seqs_tag)
-                print(y_predict)
+                # print(y_predict)
 
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
-                print(y_true)
+                # print(y_true)
 
                 # 输出评价结果
                 print(Evaluator().classifyreport(y_true, y_predict))
