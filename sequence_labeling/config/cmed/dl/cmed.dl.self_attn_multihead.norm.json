@@ -15,13 +15,16 @@
   "feature": "norm",
   "pad_token": "<PAD>",
 
-  "model_name": "Self_Attn_Multi_Head",
-  "nums_head": 8,
   "embedding_dim": 64,
+  "nums_head": 8,
+  "k_dim": 64,
+  "v_dim": 64,
+  "dropout_rate": 0.3,
+
+  "model_name": "Self_Attn_Multi_Head",
   "hidden_dim": 128,
-  "num_layers": 2,
-  "bidirectional": "Ture",
-  "dropout_rate": 0.5,
+  "num_layers": 1,
+  "bidirectional": "True",
 
   "num_epochs": 10,
   "batch_size": 32,

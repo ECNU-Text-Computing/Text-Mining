@@ -11,16 +11,14 @@
   "enc_embedding_dim": 64,
   "enc_hidden_dim": 128,
   "enc_bidirectional": "True",
-  "enc_layers": 2,
+  "enc_layers": 1,
   "enc_dropout_rate": 0.3,
-  "enc_learning_rate": 1e-3,
 
   "dec_embedding_dim": 64,
   "dec_hidden_dim": 128,
   "dec_bidirectional": "False",
   "dec_layers": 1,
   "dec_dropout_rate": 0.3,
-  "dec_learning_rate": 1e-3,
 
   "batch_size": 32,
   "criterion_name": "NLLLoss",
@@ -33,5 +31,12 @@
   "feature": "norm",
   "split_rate": 0.7,
   "cover_rate": 1,
-  "min_count": 0
+  "min_count": 0,
+
+  "learning_rate": 1e-3,
+  "embedding_dim": 64,
+  "hidden_dim": 128,
+  "num_layers": 1,
+  "bidirectional": "False",
+  "dropout_rate": 0.3
 }

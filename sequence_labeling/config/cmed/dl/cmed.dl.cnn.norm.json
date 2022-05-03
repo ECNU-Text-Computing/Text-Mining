@@ -21,9 +21,9 @@
   "model_name": "CNN",
   "embedding_dim": 64,
   "hidden_dim": 128,
-  "num_layers": 2,
-  "bidirectional": "Ture",
-  "dropout_rate": 0.5,
+  "num_layers": 1,
+  "bidirectional": "True",
+  "dropout_rate": 0.3,
 
   "num_epochs": 10,
   "batch_size": 32,
