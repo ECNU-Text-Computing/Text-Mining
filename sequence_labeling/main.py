@@ -18,6 +18,7 @@ from dl.base_model import BaseModel
 from dl.bilstm import BiLSTM
 from dl.bilstm_crf import BiLSTM_CRF
 from dl.gru import GRU
+from dl.rnn import RNN
 from dl.s2s import SeqToSeq
 from dl.s2s_dotproduct_attn import SeqToSeq_DotProductAttn
 from dl.self_attention import Self_Attention
@@ -32,6 +33,7 @@ ml_model_dict = {
 dl_model_dict = {
     'LSTM': BaseModel,
     'BiLSTM': BiLSTM,
+    'RNN': RNN,
     'GRU': GRU,
     'BiLSTM_CRF': BiLSTM_CRF,
     'MLP': MLP,
@@ -48,12 +50,32 @@ def main_dl(config):
     if config['n_folds'] == 0:
         model = dl_model_dict[model_name](**config)
         print(model)
-        model.run_train(model)
-        model.test()
+        data_path = '{}0/'.format(config['data_root'])
+        train_losses, eval_losses, eval_f1_scores = model.run_train(model, data_path)
+        test_f1_score = model.test(data_path)
+        print("train_losses: {}\n, eval_losses: {}\n, eval_f1_scores: {}\n, test_f1_score: {}\n".format(train_losses,
+                                                                                                        eval_losses,
+                                                                                                        eval_f1_scores,
+                                                                                                        test_f1_score))
     elif config['n_folds'] > 0:
+        train_results, eval_results, eval_f1, test_f1 = [], [], [], []
         for n in range(config['n_folds']):
+            print("{} : This is the {} cross fold.".format(config['model_name'], n))
             model = dl_model_dict[model_name](**config)
-            print(model)
+            if n == 0:
+                print(model)
+            data_path = '{}{}/'.format(config['data_root'], n)
+            train_losses, eval_losses, eval_f1_scores = model.run_train(model, data_path)
+            test_f1_score = model.test(data_path)
+
+            train_results.append(train_losses)
+            eval_results.append(eval_losses)
+            eval_f1.append(eval_f1_scores)
+            test_f1.append(test_f1_score)
+        print("train_losses: {}\n, eval_losses: {}\n, eval_f1_scores: {}\n, test_f1_score: {}\n".format(train_results,
+                                                                                                        eval_results,
+                                                                                                        eval_f1,
+                                                                                                        test_f1))
     else:
         raise RuntimeError("There is no n_folds in config.")
 

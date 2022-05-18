@@ -26,7 +26,7 @@
   "pad_token": "<PAD>",
   "num_epochs": 10,
 
-  "n_folds": 0,
+  "n_folds": 10,
   "shuffle": "True",
   "feature": "norm",
   "split_rate": 0.7,

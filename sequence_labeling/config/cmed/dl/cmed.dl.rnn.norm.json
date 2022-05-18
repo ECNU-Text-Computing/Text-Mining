@@ -15,7 +15,7 @@
   "feature": "norm",
   "pad_token": "<PAD>",
 
-  "model_name": "Self_Attn",
+  "model_name": "RNN",
   "embedding_dim": 64,
   "hidden_dim": 128,
   "num_layers": 1,

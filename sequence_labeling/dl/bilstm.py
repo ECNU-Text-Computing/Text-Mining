@@ -28,15 +28,15 @@ class BiLSTM(BaseModel):
 
     # torch.randn()随机初始化，随机数满足标准正态分布（0~1）/ torch.zeros()初始化参数为0
     def _init_hidden(self, batch_size):
-        hidden = (torch.randn(self.layers * self.n_directions, batch_size, self.hidden_dim),
-                  torch.randn(self.layers * self.n_directions, batch_size, self.hidden_dim))
+        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim),
+                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
         return hidden
 
-    def forward(self, X, X_lengths, Y):
-        batch_size, seq_len = X.size()
+    def forward(self, x, x_lengths, y):
+        batch_size, seq_len = x.size()
         hidden = self._init_hidden(batch_size)
-        embeded = self.word_embeddings(X)
-        embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
+        embeded = self.word_embeddings(x)
+        embeded = rnn_utils.pack_padded_sequence(embeded, x_lengths, batch_first=True)
         output, _ = self.lstm(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
         out = output.reshape(-1, output.shape[2])

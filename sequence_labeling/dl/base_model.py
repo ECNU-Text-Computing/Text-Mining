@@ -27,6 +27,7 @@ sys.path.insert(0, '..')
 from sequence_labeling.data_loader import DataLoader
 from sequence_labeling.data_processor import DataProcessor
 from sequence_labeling.utils.evaluate import Evaluator
+from sequence_labeling.utils.evaluate_2 import Metrics
 
 torch.manual_seed(1)
 
@@ -86,10 +87,9 @@ class BaseModel(nn.Module):
 
         # print('完成类{}的初始化'.format(self.__class__.__name__))
 
-    def forward(self, X, X_lengths, Y):
-        batch_size, seq_len = X.size()
-        embeded = self.word_embeddings(X)
-        embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
+    def forward(self, x, x_lengths, y):
+        embeded = self.word_embeddings(x)
+        embeded = rnn_utils.pack_padded_sequence(embeded, x_lengths, batch_first=True)
         output, _ = self.lstm(embeded)  # [batch_size, seq_len, hidden_dim]
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
         out = output.reshape(-1, output.shape[2])  # 降维为[batch_size*seq_len, hidden_dim]
@@ -99,7 +99,7 @@ class BaseModel(nn.Module):
 
         return tag_scores
 
-    def run_train(self, model):
+    def run_train(self, model, data_path):
         print('Running {} model. Training...'.format(self.model_name))
         run_mode = 'train'
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
@@ -107,11 +107,12 @@ class BaseModel(nn.Module):
 
         train_losses = []  # 记录每一batch的loss
         valid_losses = []
+        valid_f1_scores = []
         best_valid_loss = float('inf')
         for epoch in range(self.num_epochs):
             train_loss = 0
             train_data_num = 0  # 统计数据量
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
                 train_data_num += len(x)
                 batch_x = torch.tensor(x).long()
@@ -131,9 +132,10 @@ class BaseModel(nn.Module):
             train_losses.append(train_loss / train_data_num)  # 记录评价结果
 
             # 模型验证
-            avg_eval_loss = self.evaluate(model)
+            avg_eval_loss, eval_f1 = self.evaluate(model, data_path)
             print("Done Epoch{}. Eval_Loss={}".format(epoch + 1, avg_eval_loss))
             valid_losses.append(avg_eval_loss)
+            valid_f1_scores.append(eval_f1)
 
             # 保存参数最优的模型
             if avg_eval_loss < best_valid_loss:
@@ -141,38 +143,45 @@ class BaseModel(nn.Module):
                 model_save_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
                 torch.save(model, '{}'.format(model_save_path))
 
-        print('train_losses: {}'.format(train_losses))
-        print('eval_losses: {}'.format(valid_losses))
         # self.prtplot(train_losses)
-        self.prtplot(valid_losses)
+        # self.prtplot(valid_losses)
 
-    def evaluate(self, model):
+        return train_losses, valid_losses, valid_f1_scores
+
+    def evaluate(self, model, data_path):
         # print('Running {} model. Evaluating...'.format(self.model_name))
         run_mode = 'eval'
 
-        avg_loss, y_true, y_predict = self.eval_process(model, run_mode)
-        # ****************
-        print(Evaluator().f1score(y_true, y_predict))
+        avg_loss, y_true, y_predict = self.eval_process(model, run_mode, data_path)
+        f1_score = Evaluator().f1score(y_true, y_predict)
 
-        return avg_loss
+        return avg_loss, f1_score
 
-    def test(self):
-        print('Running {} model. Testing...'.format(self.model_name))
+    def test(self, data_path):
+        print('Running {} model. Testing data in folder: {}'.format(self.model_name, data_path))
         run_mode = 'test'
         best_model_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
         model = torch.load(best_model_path)
 
-        avg_loss, y_true, y_predict = self.eval_process(model, run_mode)
+        avg_loss, y_true, y_predict = self.eval_process(model, run_mode, data_path)
 
         # 输出评价结果
         print(Evaluator().classifyreport(y_true, y_predict))
+        f1_score = Evaluator().f1score(y_true, y_predict)
 
-    def eval_process(self, model, run_mode):
+        # 输出混淆矩阵
+        metrix = Metrics(y_true, y_predict)
+        metrix.report_scores()
+        metrix.report_confusion_matrix()
+
+        return f1_score
+
+    def eval_process(self, model, run_mode, data_path):
         model.eval()
         total_loss = 0
         with torch.no_grad():
             data_num = 0
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
                 data_num += len(x)
                 batch_x = torch.tensor(x).long()
@@ -193,6 +202,15 @@ class BaseModel(nn.Module):
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
                 # print(y_true)
+
+                # 专为测试评价结果增加代码
+                # if run_mode == 'test':
+                #     seq_len = len(x[0])
+                #     for i in range(len(x)):
+                #         print(self.index_to_vocab(x[i]))
+                #         print(y_true[i*seq_len:(i+1)*seq_len-1])
+                #         print(y_predict[i*seq_len:(i+1)*seq_len-1])
+
             return total_loss / data_num, y_true, y_predict
 
     def index_to_tag(self, y):
@@ -201,6 +219,13 @@ class BaseModel(nn.Module):
         for i in range(len(y)):
             y_tagseq.append(index_tag_dict[y[i]])
         return y_tagseq
+
+    def index_to_vocab(self, x):
+        index_vocab_dict = dict(zip(self.vocab.values(), self.vocab.keys()))
+        x_vocabseq = []
+        for i in range(len(x)):
+            x_vocabseq.append(index_vocab_dict[x[i]])
+        return x_vocabseq
 
     def prtplot(self, y_axis_values):
         x_axis_values = np.arange(1, len(y_axis_values) + 1, 1)

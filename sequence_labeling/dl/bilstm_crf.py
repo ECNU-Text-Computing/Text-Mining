@@ -21,6 +21,7 @@ sys.path.insert(0, '..')
 from sequence_labeling.dl.base_model import BaseModel
 from sequence_labeling.utils.evaluate import Evaluator
 from sequence_labeling.data_loader import DataLoader
+from sequence_labeling.utils.evaluate_2 import Metrics
 from .crf import CRF
 
 torch.manual_seed(1)
@@ -39,11 +40,11 @@ class BiLSTM_CRF(BaseModel):
                   torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
         return hidden
 
-    def forward(self, X, X_lengths, Y):
-        batch_size, seq_len = X.size()
+    def forward(self, x, x_lengths, y):
+        batch_size, seq_len = x.size()
         hidden = self._init_hidden(batch_size)
-        embeded = self.word_embeddings(X)
-        embeded = rnn_utils.pack_padded_sequence(embeded, X_lengths, batch_first=True)
+        embeded = self.word_embeddings(x)
+        embeded = rnn_utils.pack_padded_sequence(embeded, x_lengths, batch_first=True)
         output, _ = self.lstm(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
         out = output.reshape(-1, output.shape[2])  # [batch_size*seq_len, tags_size]
@@ -53,7 +54,7 @@ class BiLSTM_CRF(BaseModel):
 
         return out
 
-    def test(self):
+    def test(self, data_path):
         print('Running {} model. Testing...'.format(self.model_name))
         run_mode = 'test'
         best_model_path = '{}{}_{}'.format(self.data_root, self.model_name, self.model_save_path)
@@ -62,7 +63,7 @@ class BiLSTM_CRF(BaseModel):
         test_loss = 0
         with torch.no_grad():
             test_data_num = 0
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=self.data_root,
+            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
                 test_data_num += len(x)
                 batch_x = torch.tensor(x).long()
@@ -85,6 +86,14 @@ class BiLSTM_CRF(BaseModel):
 
                 # 输出评价结果
                 print(Evaluator().classifyreport(y_true, y_predict))
+                f1_score = Evaluator().f1score(y_true, y_predict)
+
+                # 输出混淆矩阵
+                metrix = Metrics(y_true, y_predict)
+                metrix.report_scores()
+                metrix.report_confusion_matrix()
+
+                return f1_score
 
 
 if __name__ == '__main__':

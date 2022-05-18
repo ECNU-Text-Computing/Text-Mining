@@ -31,13 +31,13 @@ class MLP(BaseModel):
         self.dropout = nn.Dropout(p=self.dropout_p)
 
         self.layer1 = nn.Sequential(nn.Linear(self.embedding_dim, self.layer1_dim), nn.ReLU(), self.dropout)
-        self.layer2 = nn.Sequential(nn.Linear(self.layer1_dim, self.layer2_dim), nn.ReLU(), self.dropout)
-        self.layer3 = nn.Sequential(nn.Linear(self.layer2_dim, self.layer3_dim), nn.ReLU(), self.dropout)
-        self.layer4 = nn.Sequential(nn.Linear(self.layer3_dim, self.layer4_dim), nn.ReLU(), self.dropout)
+        # self.layer2 = nn.Sequential(nn.Linear(self.layer1_dim, self.layer2_dim), nn.ReLU(), self.dropout)
+        # self.layer3 = nn.Sequential(nn.Linear(self.layer2_dim, self.layer3_dim), nn.ReLU(), self.dropout)
+        # self.layer4 = nn.Sequential(nn.Linear(self.layer3_dim, self.layer4_dim), nn.ReLU(), self.dropout)
         self.layer5 = nn.Sequential(nn.Linear(self.layer4_dim, self.tags_size))
 
-    def forward(self, X, X_lengths, Y):
-        embedded = self.word_embeddings(X)
+    def forward(self, x, x_lengths, y):
+        embedded = self.word_embeddings(x)
         out = self.layer1(embedded)
         # out = self.layer2(out)
         # out = self.layer3(out)

@@ -47,7 +47,7 @@ class DataProcessor(object):
             self.save(test_output, test_outputdata_path)
         else:
             for n in range(self.n_folds):
-                n_fold_dataset_path = '{}{}/'.format((self.data_root, n))
+                n_fold_dataset_path = '{}{}/'.format(self.data_root, n)
                 if not os.path.exists(n_fold_dataset_path):
                     os.mkdir(n_fold_dataset_path)
 
@@ -161,8 +161,8 @@ if __name__ == '__main__':
     data_processor = DataProcessor(**config)
 
     # 生成词典vocab.json
-    data_processor.get_vocab()
-    print(data_processor.load_vocab())
+    # data_processor.get_vocab()
+    # print(data_processor.load_vocab())
 
     # 将data.input和data.output划分成训练集、验证集和测试集
     data_processor.generate_datasets()

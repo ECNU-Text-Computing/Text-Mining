@@ -2,10 +2,10 @@
 # -*- coding:utf8 -*-
 
 """
-model: GRU
+model: RNN
 ======
-A class for GRU.
-配置文件：cmed.dl.gru.norm.json
+A class for RNN.
+配置文件：cmed.dl.rnn.norm.json
 """
 
 import argparse
@@ -24,11 +24,11 @@ from sequence_labeling.dl.base_model import BaseModel
 torch.manual_seed(1)
 
 
-class GRU(BaseModel):
+class RNN(BaseModel):
     def __init__(self, **config):
         super().__init__(**config)
 
-        self.gru = nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim,
+        self.rnn = nn.RNN(input_size=self.embedding_dim, hidden_size=self.hidden_dim,
                           num_layers=self.layers, batch_first=True, bidirectional=self.bidirectional)  # GRU循环神经网络
 
     def _init_hidden(self, batch_size):
@@ -39,7 +39,7 @@ class GRU(BaseModel):
         hidden = self._init_hidden(batch_size)
         embeded = self.word_embeddings(x)
         embeded = rnn_utils.pack_padded_sequence(embeded, x_lengths, batch_first=True)
-        output, _ = self.gru(embeded, hidden)  # 使用初始化值
+        output, _ = self.rnn(embeded, hidden)  # 使用初始化值
         output, _ = rnn_utils.pad_packed_sequence(output, batch_first=True)
         out = output.reshape(-1, output.shape[2])
         out = self.output_to_tag(out)
