@@ -7,13 +7,13 @@
   "tags_file_name": "tags.json",
   "model_save_name": "model.ckpt",
 
-  "n_folds": 10,
+  "n_folds": 0,
   "split_rate": 0.7,
   "cover_rate": 1,
   "min_count": 0,
   "shuffle": "True",
   "feature": "norm",
-  "pad_token": "<PAD>",
+  "pad_token": "[PAD]",
 
   "model_name": "LSTM",
   "embedding_dim": 64,

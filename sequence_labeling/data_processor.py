@@ -117,7 +117,7 @@ class DataProcessor(object):
         sorted_word_count_dict = sorted(word_count_dict.items(), key=lambda x: x[1], reverse=True)
         print("There are {} words originally.".format(len(sorted_word_count_dict)))
 
-        word_dict = {'<PAD>': 0, 'UNK': 1, 'SOS': 2, 'EOS': 3}
+        word_dict = {'[PAD]': 0, 'UNK': 1, 'SOS': 2, 'EOS': 3, '[CLS]': 4, '[SEP]': 5}
         tmp_word_count = 0
         for word, count in sorted_word_count_dict:
             print("{}:{}".format(word, count))
@@ -161,11 +161,11 @@ if __name__ == '__main__':
     data_processor = DataProcessor(**config)
 
     # 生成词典vocab.json
-    # data_processor.get_vocab()
+    data_processor.get_vocab()
     # print(data_processor.load_vocab())
 
     # 将data.input和data.output划分成训练集、验证集和测试集
-    data_processor.generate_datasets()
+    # data_processor.generate_datasets()
 
     # print(data_processor.load_tags())
 

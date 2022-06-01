@@ -23,7 +23,7 @@
   "batch_size": 32,
   "criterion_name": "NLLLoss",
   "optimizer_name": "Adam",
-  "pad_token": "<PAD>",
+  "pad_token": "[PAD]",
   "num_epochs": 10,
 
   "n_folds": 10,

@@ -26,6 +26,7 @@ from dl.self_attention_multihead import Self_Attention_Multi_Head
 from dl.transformer import Transformer
 from dl.mlp import MLP
 from dl.cnn import CNN
+from dl.bert_lstm import Bert_LSTM
 
 ml_model_dict = {
 }
@@ -42,7 +43,8 @@ dl_model_dict = {
     'Self_Attn_Multi_Head': Self_Attention_Multi_Head,
     'SeqToSeq': SeqToSeq,
     'SeqToSeq_DotProductAttn': SeqToSeq_DotProductAttn,
-    'Transformer': Transformer
+    'Transformer': Transformer,
+    'Bert_LSTM': Bert_LSTM
 }
 
 

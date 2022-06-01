@@ -13,7 +13,7 @@
   "min_count": 0,
   "shuffle": "True",
   "feature": "norm",
-  "pad_token": "<PAD>",
+  "pad_token": "[PAD]",
 
   "embedding_dim": 64,
   "nums_head": 8,

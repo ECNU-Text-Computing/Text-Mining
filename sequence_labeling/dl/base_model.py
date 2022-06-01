@@ -112,8 +112,10 @@ class BaseModel(nn.Module):
         for epoch in range(self.num_epochs):
             train_loss = 0
             train_data_num = 0  # 统计数据量
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+            for seq_list, tag_list in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
+                batch_input, batch_output = self.data_to_index(seq_list, tag_list)
+                x, x_len, y, y_len = self.padding(batch_input, batch_output)
                 train_data_num += len(x)
                 batch_x = torch.tensor(x).long()
                 batch_y = torch.tensor(y).long()
@@ -181,12 +183,13 @@ class BaseModel(nn.Module):
         total_loss = 0
         with torch.no_grad():
             data_num = 0
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+            for seq_list, tag_list in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
+                batch_input, batch_output = self.data_to_index(seq_list, tag_list)
+                x, x_len, y, y_len = self.padding(batch_input, batch_output)
                 data_num += len(x)
                 batch_x = torch.tensor(x).long()
                 batch_y = torch.tensor(y).long()
-
                 tag_scores = model(batch_x, x_len, batch_y)
 
                 batch_y = batch_y.view(-1)
@@ -226,6 +229,62 @@ class BaseModel(nn.Module):
         for i in range(len(x)):
             x_vocabseq.append(index_vocab_dict[x[i]])
         return x_vocabseq
+
+    def data_to_index(self, input, output):
+        batch_input = []
+        batch_output = []
+        for line in input:  # 依据词典，将input转化为向量
+            new_line = []
+            for word in line.strip().split():
+                new_line.append(int(self.vocab[word]) if word in self.vocab else int(self.vocab['UNK']))
+            batch_input.append(new_line)
+        for line in output:  # 依据Tag词典，将output转化为向量
+            new_line = []
+            for tag in line.strip().split():
+                new_line.append(
+                    int(self.tag_index_dict[tag]) if tag in self.tag_index_dict else print(
+                        "There is a wrong Tag in {}!".format(line)))
+            batch_output.append(new_line)
+
+        return batch_input, batch_output
+
+    def padding(self, batch_input, batch_output):
+        # 为了满足pack_padded_sequence的要求，将batch数据按input数据的长度排序
+        batch_data = list(zip(batch_input, batch_output))
+        batch_input_data, batch_output_data = zip(*batch_data)
+        in_out_pairs = []  # [[batch_input_data_item, batch_output_data_item], ...]
+        for n in range(len(batch_input_data)):
+            new_pair = []
+            new_pair.append(batch_input_data[n])
+            new_pair.append(batch_output_data[n])
+            in_out_pairs.append(new_pair)
+        in_out_pairs = sorted(in_out_pairs, key=lambda x: len(x[0]), reverse=True)  # 根据每对数据中第1个数据的长度排序
+
+        # 排序后的数据重新组织成batch_x, batch_y
+        batch_x = []
+        batch_y = []
+        for each_pair in in_out_pairs:
+            batch_x.append(each_pair[0])
+            batch_y.append(each_pair[1])
+
+        # 按最长的数据pad
+        batch_x_padded, x_lengths_original = self.pad_seq(batch_x)
+        batch_y_padded, y_lengths_original = self.pad_seq(batch_y)
+
+        return batch_x_padded, x_lengths_original, batch_y_padded, y_lengths_original
+
+    def pad_seq(self, seq):
+        seq_lengths = [len(st) for st in seq]
+        # create an empty matrix with padding tokens
+        pad_token = self.padding_idx
+        longest_sent = max(seq_lengths)
+        batch_size = len(seq)
+        padded_seq = np.ones((batch_size, longest_sent)) * pad_token
+        # copy over the actual sequences
+        for i, x_len in enumerate(seq_lengths):
+            sequence = seq[i]
+            padded_seq[i, 0:x_len] = sequence[:x_len]
+        return padded_seq, seq_lengths
 
     def prtplot(self, y_axis_values):
         x_axis_values = np.arange(1, len(y_axis_values) + 1, 1)

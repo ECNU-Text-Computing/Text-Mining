@@ -63,8 +63,10 @@ class BiLSTM_CRF(BaseModel):
         test_loss = 0
         with torch.no_grad():
             test_data_num = 0
-            for x, x_len, y, y_len in DataLoader(**self.config).data_generator(data_path=data_path,
+            for seq_list, tag_list in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
+                batch_input, batch_output = self.data_to_index(seq_list, tag_list)
+                x, x_len, y, y_len = self.padding(batch_input, batch_output)
                 test_data_num += len(x)
                 batch_x = torch.tensor(x).long()
                 batch_y = torch.tensor(y).long()
