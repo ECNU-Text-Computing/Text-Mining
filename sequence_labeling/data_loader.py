@@ -57,7 +57,7 @@ class DataLoader:
             self.batch_size = len(output_data)
 
         for i in range(0, len(output_data), self.batch_size):
-            # 构建batch数据，并向量化
+            # 构建batch数据
             batch_input = input_data[i: i + self.batch_size]
             batch_output = output_data[i: i + self.batch_size]
 

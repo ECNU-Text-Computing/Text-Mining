@@ -15,14 +15,12 @@
   "feature": "norm",
   "pad_token": "[PAD]",
 
-  "window_sizes": [3, 5, 7],
-  "out_channels": 128,
-
-  "model_name": "CNN",
-  "embedding_dim": 64,
+  "model_name": "Bert_MLP",
+  "checkpoint": "bert-base-chinese",
+  "embedding_dim": 768,
   "hidden_dim": 128,
   "num_layers": 1,
-  "bidirectional": "True",
+  "bidirectional": "False",
   "dropout_rate": 0.3,
 
   "num_epochs": 10,

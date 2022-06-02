@@ -27,7 +27,7 @@
   "num_epochs": 10,
 
   "n_folds": 10,
-  "shuffle": "True",
+  "shuffle": 1,
   "feature": "norm",
   "split_rate": 0.7,
   "cover_rate": 1,
