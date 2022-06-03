@@ -2,10 +2,10 @@
 # -*- coding:utf8 -*-
 
 """
-model: Bert_LSTM
+model: Bert_BiLSTM
 ======
-A class for LSTM using Bert embedding.
-配置文件：cmed.dl.bert_lstm.norm.json
+A class for BiLSTM using Bert embedding.
+配置文件：cmed.dl.bert_bilstm.norm.json
 """
 import argparse
 import datetime
@@ -19,23 +19,27 @@ from sequence_labeling.dl.bert_mlp import Bert_MLP
 torch.manual_seed(1)
 
 
-class Bert_LSTM(Bert_MLP):
+class Bert_BiLSTM(Bert_MLP):
     def __init__(self, **config):
         super().__init__(**config)
 
         self.lstm = nn.LSTM(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=self.layers,
                             bidirectional=self.bidirectional, batch_first=True)
-
-        # 将模型输出映射到标签空间
         self.output_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tags_size)
 
+    def _init_hidden(self, batch_size):
+        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim),
+                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
+        return hidden
+
     def forward(self, seq_list):
-        # BertModel embedding
         batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
         embedded = self.bert_model(**batch).hidden_states[0]
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
-        output, _ = self.lstm(embedded)
+        batch_size = len(seq_list)
+        hidden = self._init_hidden(batch_size)
+        output, _ = self.lstm(embedded, hidden)
 
         output = self.output_to_tag(output)
         output = output.reshape(-1, output.shape[2])

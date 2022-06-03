@@ -2,25 +2,10 @@
 # -*- coding:utf8 -*-
 
 """
-model: Bert_MLP
+model: Bert_S2S
 ======
-A class for MLP using Bert embedding.
-配置文件：cmed.dl.bert_mlp.norm.json
-
-配置文件中"checkpoint"可替换为如下列表中的值:
-bert-base-chinese
-bert-base-multilingual-cased
-bert-base-multilingual-uncased
-distilbert-base-multilingual-cased
-hfl/chinese-bert-wwm
-hfl/chinese-bert-wwm-ext
-hfl/chinese-roberta-wwm-ext
-hfl/chinese-roberta-wwm-ext-large  ("hidden_size": 1024)
-hfl/rbt3
-hfl/rbtl3  ("hidden_size": 1024)
-hfl/rbt4
-hfl/rbt6
-allenyummy/chinese-bert-wwm-ehr-ner-sl  （医学NER任务）
+A class for S2S using Bert embedding.
+配置文件：cmed.dl.bert_s2s.norm.json
 """
 
 import argparse
@@ -41,24 +26,19 @@ from sequence_labeling.data_processor import DataProcessor
 from sequence_labeling.utils.evaluate import Evaluator
 from sequence_labeling.utils.evaluate_2 import Metrics
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
-class Bert_MLP(nn.Module):
+
+class Bert_S2S(nn.Module):
     def __init__(self, **config):
-        super(Bert_MLP, self).__init__()
+        super(Bert_S2S, self).__init__()
         self.config = config
         self.model_name = config['model_name']
         self.data_root = config['data_root']
         self.model_save_path = config['model_save_name']
 
-        self.embedding_dim = config['embedding_dim']
-        self.hidden_dim = config['hidden_dim']
-        self.layers = config['num_layers']
-        self.bidirectional = True if config['bidirectional'] == 'True' else False
-        self.n_directions = 2 if self.bidirectional else 1
-        self.dropout_p = config['dropout_rate']
         self.pad_token = config['pad_token']
-
         self.num_epochs = config['num_epochs']
         self.batch_size = config['batch_size']
         self.learning_rate = config['learning_rate']
@@ -86,6 +66,34 @@ class Bert_MLP(nn.Module):
         self.padding_idx = self.vocab[self.pad_token]
         self.padding_idx_tags = self.tag_index_dict[self.pad_token]
 
+        self.enc_embedding_dim = config['enc_embedding_dim']
+        self.enc_hidden_dim = config['enc_hidden_dim']
+        self.enc_bidirectional = True if config['enc_bidirectional'] == 'True' else False
+        self.enc_n_directions = 2 if self.enc_bidirectional else 1
+        self.enc_layers = config['enc_layers']
+        self.enc_dropout_p = config['enc_dropout_rate']
+
+        self.dec_embedding_dim = config['dec_embedding_dim']
+        self.dec_hidden_dim = config['dec_hidden_dim']
+        self.dec_bidirectional = True if config['dec_bidirectional'] == 'True' else False
+        self.dec_n_directions = 2 if self.dec_bidirectional else 1
+        self.dec_layers = config['dec_layers']
+        self.dec_dropout_p = config['dec_dropout_rate']
+
+        self.SOS_token = self.tag_index_dict['SOS']
+        self.EOS_token = self.tag_index_dict['EOS']
+
+        # 编码器设置
+        self.enc_gru = nn.GRU(input_size=self.enc_embedding_dim, hidden_size=self.enc_hidden_dim,
+                              num_layers=self.enc_layers, bidirectional=self.enc_bidirectional)
+        self.enc_hidden_to_dec_hidden = nn.Linear(self.enc_hidden_dim * self.enc_n_directions, self.dec_hidden_dim)
+
+        # 解码器设置
+        self.dec_embedding = nn.Embedding(self.tags_size, self.dec_embedding_dim)
+        self.dec_gru = nn.GRU(input_size=self.dec_embedding_dim, hidden_size=self.dec_hidden_dim,
+                              num_layers=self.dec_layers, bidirectional=self.dec_bidirectional)
+        self.dec_output_to_tags = nn.Linear(self.dec_hidden_dim * self.dec_n_directions, self.tags_size)
+
         # Bert模型
         self.checkpoint = config['checkpoint']
         self.tokenizer = BertTokenizer.from_pretrained(self.checkpoint)
@@ -94,24 +102,50 @@ class Bert_MLP(nn.Module):
         model_config.output_attentions = True
         self.bert_model = BertModel.from_pretrained(self.checkpoint, config=model_config)
 
-        self.dropout = nn.Dropout(p=self.dropout_p)
-        self.fc = nn.Sequential(nn.Linear(self.embedding_dim, self.hidden_dim), nn.ReLU(), self.dropout)
-        self.linear_output_to_tag = nn.Linear(self.hidden_dim, self.tags_size)
+    def init_hidden_enc(self, batch_size):
+        return torch.zeros(self.enc_layers * self.enc_n_directions, batch_size, self.enc_hidden_dim, device=device)
 
-        # print('完成类{}的初始化'.format(self.__class__.__name__))
+    # src为二维列表; trg为二维张量, shape = [batch_size, seq_len]
+    def forward(self, src, trg):
+        batch_size, seq_len = trg.size()
+        trg_tensor = trg.transpose(0, 1)
 
-    def forward(self, seq_list):
-        # BertModel embedding
-        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.bert_model(**batch).hidden_states[0]
-
+        # 编码
+        batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt")
+        enc_embedded = self.bert_model(**batch).hidden_states[0]
         # 从embedded中删除表示[CLS],[SEP]的向量
-        embedded = self.del_special_token(seq_list, embedded)  # !!!
+        # [seq_len, batch-size, enc_embedding_dim]
+        enc_embedded = self.del_special_token(src, enc_embedded).transpose(0, 1)
 
-        output = self.fc(embedded)
-        output = self.linear_output_to_tag(output)
+        enc_init_hidden = self.init_hidden_enc(batch_size)
+        enc_output, enc_hidden = self.enc_gru(enc_embedded, enc_init_hidden)
+        # 若为双向
+        if self.enc_bidirectional:
+            enc_hidden = self.enc_hidden_to_dec_hidden(torch.cat((enc_hidden[-2, :, :], enc_hidden[-1, :, :]), dim=1))
+        # 若为单向，但enc_hidden_dim != dec_hidden_dim
+        else:
+            enc_hidden = self.enc_hidden_to_dec_hidden(enc_hidden[-1, :, :])
 
-        output = output.reshape(-1, output.shape[2])
+        # 解码
+        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size)  # 保存解码所有时间步的output
+        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1)
+        dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1)  # [batch_size, 1]
+        for t in range(0, seq_len):
+            dec_input = self.dec_embedding(dec_input).transpose(0, 1)  # [1, batch_size, dec_embedding_dim]
+            dec_output, dec_hidden = self.dec_gru(dec_input, dec_hidden)
+            # 更新dec_input
+            dec_input = trg_tensor[t].unsqueeze(1)
+            # top1 = dec_output.argmax(1)
+            # dec_input = top1.unsqueeze(1).detach()
+
+            dec_output = self.dec_output_to_tags(
+                dec_output.reshape(-1, dec_output.shape[-1]))  # [batch_size, tags_size]
+            dec_output = nn.functional.log_softmax(dec_output, dim=1)
+            dec_outputs[t] = dec_output
+
+        dec_outputs = dec_outputs.transpose(0, 1)  # [batch_size, seq_len, tags_size]
+        output = dec_outputs.reshape(-1, dec_outputs.shape[2])  # [batch_size*seq_len, tags_size]
+
         tag_scores = F.log_softmax(output, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores
@@ -136,11 +170,10 @@ class Bert_MLP(nn.Module):
                 batch_output = self.tag_to_index(tag_list)
                 y = self.pad_taglist(batch_output)
                 batch_y = torch.tensor(y).long()
-                batch_y = batch_y.view(-1)
-
 
                 # 运行model
-                tag_scores = model(seq_list)
+                tag_scores = model(seq_list, batch_y)
+                batch_y = batch_y.view(-1)
                 loss = self.criterion(tag_scores, batch_y)
                 model.zero_grad()
                 loss.backward()
@@ -208,10 +241,10 @@ class Bert_MLP(nn.Module):
                 batch_output = self.tag_to_index(tag_list)
                 y = self.pad_taglist(batch_output)
                 batch_y = torch.tensor(y).long()
-                batch_y = batch_y.view(-1)
 
                 # 运行model
-                tag_scores = model(seq_list)
+                tag_scores = model(seq_list, batch_y)
+                batch_y = batch_y.view(-1)
                 loss = self.criterion(tag_scores, batch_y)
                 total_loss += loss.item()
 
@@ -261,7 +294,23 @@ class Bert_MLP(nn.Module):
 
         return batch_output
 
-    # 补齐每批tag列表数据
+    # taglist在padding时添加bert所用特殊符号[CLS], [SEP]
+    # def pad_taglist(self, seq):
+    #     seq_lengths = [len(st) for st in seq]
+    #     # create an empty matrix with padding tokens
+    #     pad_token = self.padding_idx_tags
+    #     longest_sent = max(seq_lengths)
+    #     batch_size = len(seq)
+    #     padded_seq = np.ones((batch_size, longest_sent + 2)) * pad_token
+    #     # copy over the actual sequences
+    #     for i, x_len in enumerate(seq_lengths):
+    #         sequence = seq[i]
+    #         padded_seq[i, 0] = self.tag_index_dict['[CLS]']
+    #         padded_seq[i, 1:x_len + 1] = sequence[:x_len]
+    #         padded_seq[i, x_len + 1] = self.tag_index_dict['[SEP]']
+    #     return padded_seq
+
+    # taglist在padding时不添加bert所用特殊符号[CLS], [SEP]
     def pad_taglist(self, taglist):
         seq_lengths = [len(st) for st in taglist]
         # create an empty matrix with padding tokens

@@ -2,10 +2,10 @@
 # -*- coding:utf8 -*-
 
 """
-model: Bert_LSTM
+model: Bert_CNN
 ======
-A class for LSTM using Bert embedding.
-配置文件：cmed.dl.bert_lstm.norm.json
+A class for CNN using Bert embedding.
+配置文件：cmed.dl.bert_cnn.norm.json
 """
 import argparse
 import datetime
@@ -19,15 +19,23 @@ from sequence_labeling.dl.bert_mlp import Bert_MLP
 torch.manual_seed(1)
 
 
-class Bert_LSTM(Bert_MLP):
+class Bert_CNN(Bert_MLP):
     def __init__(self, **config):
         super().__init__(**config)
 
-        self.lstm = nn.LSTM(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=self.layers,
-                            bidirectional=self.bidirectional, batch_first=True)
+        self.window_sizes = config['window_sizes']
+        self.out_channels = config['out_channels']
 
-        # 将模型输出映射到标签空间
-        self.output_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tags_size)
+        self.convs = nn.ModuleList([
+            nn.Sequential(nn.Conv1d(in_channels=self.embedding_dim,
+                                    out_channels=self.out_channels,
+                                    kernel_size=h, padding=(int((h - 1) / 2))),
+                          # nn.BatchNorm1d(num_features=self.out_channels),
+                          nn.ReLU())
+            for h in self.window_sizes
+        ])
+        self.output_to_tag = nn.Linear(in_features=self.out_channels * len(self.window_sizes),
+                                       out_features=self.tags_size)
 
     def forward(self, seq_list):
         # BertModel embedding
@@ -35,10 +43,15 @@ class Bert_LSTM(Bert_MLP):
         embedded = self.bert_model(**batch).hidden_states[0]
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
-        output, _ = self.lstm(embedded)
+        # [batch_size, seq_len, embedding_dim]  -> [batch_size, embedding_dim, seq_len]
+        embedded = embedded.permute(0, 2, 1)
 
-        output = self.output_to_tag(output)
-        output = output.reshape(-1, output.shape[2])
+        out = [conv(embedded) for conv in self.convs]  # out[i]: [batch_size, self.out_channels, 1]
+        out = torch.cat(out, dim=1)  # 对应第⼆个维度（⾏）拼接起来，⽐如说5*2*1,5*3*1的拼接变成5*5*1
+        out = out.transpose(1, 2)
+        out = self.output_to_tag(out)
+
+        output = out.reshape(-1, out.shape[2])
         tag_scores = F.log_softmax(output, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores

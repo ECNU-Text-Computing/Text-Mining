@@ -15,6 +15,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 sys.path.insert(0, '../sequence_labeling/dl')
 sys.path.insert(0, '../sequence_labeling')
@@ -95,7 +96,9 @@ class SeqToSeq(BaseModel):
         dec_outputs = dec_outputs.transpose(0, 1)  # [batch_size, seq_len, tags_size]
         output = dec_outputs.reshape(-1, dec_outputs.shape[2])  # [batch_size*seq_len, tags_size]
 
-        return output
+        tag_scores = F.log_softmax(output, dim=1)  # [batch_size*seq_len, tags_size]
+
+        return tag_scores
 
 
 if __name__ == '__main__':

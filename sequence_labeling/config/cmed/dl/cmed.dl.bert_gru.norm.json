@@ -15,8 +15,9 @@
   "feature": "norm",
   "pad_token": "[PAD]",
 
-  "model_name": "LSTM",
-  "embedding_dim": 64,
+  "model_name": "Bert_GRU",
+  "checkpoint": "bert-base-chinese",
+  "embedding_dim": 768,
   "hidden_dim": 128,
   "num_layers": 1,
   "bidirectional": "False",

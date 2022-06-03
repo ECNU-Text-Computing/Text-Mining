@@ -2,14 +2,10 @@
 # -*- coding:utf8 -*-
 
 """
-配置文件: cmed.dl.s2s_dotproduct_attn.norm.json
-Class: SeqToSeq_DotProductAttn
-    实现DotProduct Attention，父类为s2s.py中的SeqToSeq.
-    初始化参数: **config
-    forward()：
-        输入：src: 2维张量，[batch_size, seq_len]
-            trg: 2维张量.[batch_size, seq_len]
-        输出：output: [batch_size*seq_len, tags_size], 保存decoder所有时间步的输出
+model: Bert_S2S_Attn
+======
+A class for S2S with dotproduct attention using Bert embedding.
+配置文件：cmed.dl.bert_s2s_attn.norm.json
 """
 
 import sys
@@ -18,32 +14,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-sys.path.insert(0, '../sequence_labeling/dl')
-sys.path.insert(0, '../sequence_labeling')
-from s2s import SeqToSeq
+from bert_s2s import Bert_S2S
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
-class SeqToSeq_DotProductAttn(SeqToSeq):
+class Bert_S2S_Attn(Bert_S2S):
     def __init__(self, **config):
         super().__init__(**config)
 
         self.attn_combine = nn.Linear(self.dec_embedding_dim + self.enc_hidden_dim * self.enc_n_directions,
                                       self.dec_embedding_dim)
 
-    def forward(self, src, src_lengths, trg):
-        loss = 0
-        src_tensor = src
+    def forward(self, src, trg):
+        batch_size, seq_len = trg.size()
         trg_tensor = trg.transpose(0, 1)
-        batch_size, seq_len = src_tensor.size()
 
         # 编码
-        # enc_output: [seq_len, batch_size, enc_hidden_dim * enc_n_direction]
-        # enc_hidden: [batch_size, hidden_dim]
+        batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt")
+        enc_embedded = self.bert_model(**batch).hidden_states[0]
+        # 从embedded中删除表示[CLS],[SEP]的向量
+        enc_embedded = self.del_special_token(src, enc_embedded).transpose(0, 1)
+
         enc_init_hidden = self.init_hidden_enc(batch_size)
-        enc_embedded = self.enc_embedding(src_tensor).transpose(0, 1)  # [seq_len, batch-size, enc_embedding_dim]
         enc_output, enc_hidden = self.enc_gru(enc_embedded, enc_init_hidden)
         # 若为双向
         if self.enc_bidirectional:
