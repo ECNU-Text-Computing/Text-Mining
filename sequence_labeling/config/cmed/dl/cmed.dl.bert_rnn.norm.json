@@ -20,7 +20,7 @@
   "embedding_dim": 768,
   "hidden_dim": 128,
   "num_layers": 1,
-  "bidirectional": "False",
+  "bidirectional": "True",
   "dropout_rate": 0.3,
 
   "num_epochs": 10,
