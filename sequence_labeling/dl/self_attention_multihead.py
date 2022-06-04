@@ -59,8 +59,8 @@ class Self_Attention_Multi_Head(BaseModel):
                                                 -1)  # Q * K.T() * V # batch_size * seq_len * dim_v
 
         # 为提升标注效果，增加1个全连接层之后输出
-        out = self.relu(self.drop(self.fc1(output)))
-        out = self.fc2(out)
+        # out = self.relu(self.drop(self.fc1(output)))
+        out = self.fc2(output)
         out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, tags_size]
         tag_scores = nn.functional.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
 
