@@ -132,6 +132,33 @@ class DataProcessor(object):
             json.dump(word_dict, fw)
         print("Successfully save word dict to {}.".format(word_dict_path))
 
+    def get_tags(self):
+        data_output_path = self.data_root + self.outputdata_file_name
+
+        tag_count_dict = {}
+        total_tag_count = 0
+        with open(data_output_path, 'r', encoding='utf-8') as fp:
+            for line in fp.readlines():
+                for tag in line.strip().split():
+                    total_tag_count += 1
+                    if tag not in tag_count_dict:
+                        tag_count_dict[tag] = 1
+                    else:
+                        tag_count_dict[tag] += 1
+        sorted_tag_count_dict = sorted(tag_count_dict.items(), key=lambda x: x[1], reverse=True)
+        print("There are {} tags originally.".format(len(sorted_tag_count_dict)))
+
+        tag_dict = {'[PAD]': 0, 'UNK': 1, 'SOS': 2, 'EOS': 3, '[CLS]': 4, '[SEP]': 5}
+        for tag, count in sorted_tag_count_dict:
+            print("{}:{}".format(tag, count))
+            tag_dict[tag] = len(tag_dict)
+        print("There are {} tags finally.".format(len(tag_dict)))
+
+        tag_dict_path = self.data_root + self.tags_file_name + "0000"
+        with open(tag_dict_path, 'w', encoding='utf-8') as fw:
+            json.dump(tag_dict, fw)
+        print("Successfully save word dict to {}.".format(tag_dict_path))
+
     # 读取vocab.json的内容，返回值为{}类型。
     def load_vocab(self):
         word_dict_path = self.data_root + self.dict_file_name
@@ -161,8 +188,12 @@ if __name__ == '__main__':
     data_processor = DataProcessor(**config)
 
     # 生成词典vocab.json
-    data_processor.get_vocab()
+    # data_processor.get_vocab()
     # print(data_processor.load_vocab())
+    
+    # 生成tag词典tags.json
+    data_processor.get_tags()
+    # print(data_processor.load_tags())
 
     # 将data.input和data.output划分成训练集、验证集和测试集
     # data_processor.generate_datasets()
