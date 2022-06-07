@@ -14,6 +14,7 @@ from math import sqrt
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 sys.path.insert(0, '.')
 sys.path.insert(0, '..')
@@ -60,6 +61,6 @@ class Self_Attention(BaseModel):
         # out = self.relu(self.drop(self.fc1(output)))
         out = self.fc2(output)
         out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, tags_size]
-        tag_scores = nn.functional.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
+        tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores

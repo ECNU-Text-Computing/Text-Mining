@@ -112,7 +112,7 @@ class Bert_S2S(nn.Module):
 
         # 编码
         batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt")
-        enc_embedded = self.bert_model(**batch).hidden_states[0]
+        enc_embedded = self.get_token_embedding(batch, 2)
         # 从embedded中删除表示[CLS],[SEP]的向量
         # [seq_len, batch-size, enc_embedding_dim]
         enc_embedded = self.del_special_token(src, enc_embedded).transpose(0, 1)
@@ -231,9 +231,11 @@ class Bert_S2S(nn.Module):
 
     def eval_process(self, model, run_mode, data_path):
         model.eval()
-        total_loss = 0
         with torch.no_grad():
+            total_loss = 0
             data_num = 0
+            all_y_predict = []
+            all_y_true = []
             for seq_list, tag_list in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
                 data_num += len(seq_list)
@@ -252,11 +254,13 @@ class Bert_S2S(nn.Module):
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
                 y_predict = list(predict.numpy())
                 y_predict = self.index_to_tag(y_predict)
-                # print(y_predict)
+                all_y_predict = all_y_predict + y_predict
+                # print(len(y_predict_list))
 
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
-                # print(y_true)
+                all_y_true = all_y_true + y_true
+                # print(len(y_true_list))
 
                 # 专为测试评价结果增加代码
                 # if run_mode == 'eval':
@@ -266,7 +270,7 @@ class Bert_S2S(nn.Module):
                 #         print(y_true[i*seq_len:(i+1)*seq_len-1])
                 #         print(y_predict[i*seq_len:(i+1)*seq_len-1])
 
-            return total_loss / data_num, y_true, y_predict
+            return total_loss / data_num, all_y_true, all_y_predict
 
     def index_to_tag(self, y):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
@@ -338,7 +342,7 @@ class Bert_S2S(nn.Module):
 
     def del_special_token(self, batch_list, batch_tensor):
         batch_size, seq_len, embed_dim = batch_tensor.shape
-        seq_lengths = [int(len(st)/2) for st in batch_list]
+        seq_lengths = [int(len(st) / 2) for st in batch_list]
 
         # 按句取出，除去句中表示[CLS], [SEP]的向量
         tmp = []
@@ -359,6 +363,51 @@ class Bert_S2S(nn.Module):
                 new_batch_tensor = torch.cat((new_batch_tensor, tmp[i + 1].unsqueeze(0)), 0)
 
         return new_batch_tensor
+
+    def get_token_embedding(self, batch, method):
+        self.bert_model.eval()
+
+        with torch.no_grad():
+            if method == 0:
+                # 使用“last_hidden_state”
+                # last_hidden_state.shape = (batch_size, sequence_length, hidden_size)
+                embedded = self.bert_model(**batch).last_hidden_state
+
+            # 使用hidden_states。hidden_states是一个元组，第一个元素是embedding，其余元素是各层的输出，
+            # 每个元素的形状是(batch_size, sequence_length, hidden_size)。
+            elif method == 1:
+                # 第1种方式：使用“initial embedding outputs”
+                embedded = self.bert_model(**batch).hidden_states[0]
+
+            else:
+                # 第2种方式：使用隐藏层输出
+                hidden_states = self.bert_model(**batch).hidden_states
+
+                layers = len(hidden_states)
+                batch_size, seq_len, embed_dim = hidden_states[-1].size()
+                # print(layers, batch_size, seq_len, embed_dim)
+
+                batch_embedding = []
+                for batch_i in range(batch_size):
+                    token_embeddings = []
+                    for token_i in range(seq_len):
+                        hidden_layers = []
+                        for layer_i in range(layers):
+                            vec = hidden_states[layer_i][batch_i][token_i]
+                            hidden_layers.append(vec)
+                        token_embeddings.append(hidden_layers)
+                    # 连接最后四层 [number_of_tokens, 3072]
+                    # concatenated_last_4_layers = [torch.cat((layer[-1], layer[-2], layer[-3], layer[-4]), 0) for layer in
+                    #                               token_embeddings]
+                    # batch_embedding.append(torch.stack((concatenated_last_4_layers)))
+
+                    # 对最后四层求和 [number_of_tokens, 768]
+                    summed_last_4_layers = [torch.sum(torch.stack(layer)[-4:], 0) for layer in token_embeddings]
+                    batch_embedding.append(torch.stack((summed_last_4_layers)))
+
+                embedded = torch.stack((batch_embedding))
+
+        return embedded
 
     def prtplot(self, y_axis_values):
         x_axis_values = np.arange(1, len(y_axis_values) + 1, 1)

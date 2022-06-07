@@ -40,7 +40,7 @@ class Bert_CNN(Bert_MLP):
     def forward(self, seq_list):
         # BertModel embedding
         batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.bert_model(**batch).hidden_states[0]
+        embedded = self.get_token_embedding(batch, 2)
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
         # [batch_size, seq_len, embedding_dim]  -> [batch_size, embedding_dim, seq_len]

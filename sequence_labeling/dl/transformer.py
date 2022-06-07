@@ -12,6 +12,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 sys.path.insert(0, '')
 sys.path.insert(0, '..')
@@ -99,7 +100,7 @@ class Transformer(SeqToSeq):
             dec_input = trg_tensor[t].unsqueeze(1)
             # 维度变换
             tag_scores = self.projection(dec_output.squeeze(0))  # [batch_size, tags_size]
-            tag_scores = nn.functional.log_softmax(tag_scores, dim=1)  # [batch_size, tags_size]
+            tag_scores = F.log_softmax(tag_scores, dim=1)  # [batch_size, tags_size]
             dec_outputs[t] = tag_scores
 
         dec_outputs = dec_outputs.transpose(0, 1)  # [batch_size, seq_len, tags_size]

@@ -29,6 +29,7 @@ from sequence_labeling.data_processor import DataProcessor
 from sequence_labeling.utils.evaluate import Evaluator
 from sequence_labeling.utils.evaluate_2 import Metrics
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -103,6 +104,7 @@ class BaseModel(nn.Module):
         print('Running {} model. Training...'.format(self.model_name))
         run_mode = 'train'
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
+        model.to(device)
         model.train()
 
         train_losses = []  # 记录每一batch的loss
@@ -117,8 +119,8 @@ class BaseModel(nn.Module):
                 batch_input, batch_output = self.data_to_index(seq_list, tag_list)
                 x, x_len, y, y_len = self.padding(batch_input, batch_output)
                 train_data_num += len(x)
-                batch_x = torch.tensor(x).long()
-                batch_y = torch.tensor(y).long()
+                batch_x = torch.tensor(x).long().to(device)
+                batch_y = torch.tensor(y).long().to(device)
 
                 tag_scores = model(batch_x, x_len, batch_y)
 
@@ -180,9 +182,11 @@ class BaseModel(nn.Module):
 
     def eval_process(self, model, run_mode, data_path):
         model.eval()
-        total_loss = 0
         with torch.no_grad():
+            total_loss = 0
             data_num = 0
+            all_y_predict = []
+            all_y_true = []
             for seq_list, tag_list in DataLoader(**self.config).data_generator(data_path=data_path,
                                                                                run_mode=run_mode):
                 batch_input, batch_output = self.data_to_index(seq_list, tag_list)
@@ -200,11 +204,13 @@ class BaseModel(nn.Module):
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
                 y_predict = list(predict.numpy())
                 y_predict = self.index_to_tag(y_predict)
-                # print(y_predict)
+                all_y_predict = all_y_predict + y_predict
+                # print(len(y_predict_list))
 
                 y_true = y.flatten()
                 y_true = self.index_to_tag(y_true)
-                # print(y_true)
+                all_y_true = all_y_true + y_true
+                # print(len(y_true_list))
 
                 # 专为测试评价结果增加代码
                 # if run_mode == 'test':
@@ -214,7 +220,7 @@ class BaseModel(nn.Module):
                 #         print(y_true[i*seq_len:(i+1)*seq_len-1])
                 #         print(y_predict[i*seq_len:(i+1)*seq_len-1])
 
-            return total_loss / data_num, y_true, y_predict
+            return total_loss / data_num, all_y_true, all_y_predict
 
     def index_to_tag(self, y):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))

@@ -33,7 +33,7 @@ class Bert_S2S_Attn(Bert_S2S):
 
         # 编码
         batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt")
-        enc_embedded = self.bert_model(**batch).hidden_states[0]
+        enc_embedded = self.get_token_embedding(batch, 2)
         # 从embedded中删除表示[CLS],[SEP]的向量
         enc_embedded = self.del_special_token(src, enc_embedded).transpose(0, 1)
 

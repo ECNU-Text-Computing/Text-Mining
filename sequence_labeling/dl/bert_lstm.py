@@ -32,7 +32,7 @@ class Bert_LSTM(Bert_MLP):
     def forward(self, seq_list):
         # BertModel embedding
         batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.bert_model(**batch).hidden_states[0]
+        embedded = self.get_token_embedding(batch, 2)
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
         output, _ = self.lstm(embedded)

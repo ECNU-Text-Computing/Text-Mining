@@ -12,6 +12,7 @@ from math import sqrt
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from sequence_labeling.dl.bert_mlp import Bert_MLP
 
@@ -40,7 +41,7 @@ class Bert_Self_Attn_Multihead(Bert_MLP):
 
     def forward(self, x):
         batch = self.tokenizer(x, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.bert_model(**batch).hidden_states[0]
+        embedded = self.get_token_embedding(batch, 2)
         embedded = self.del_special_token(x, embedded)  # 剔除[CLS], [SEP]标识
 
         Q = self.q(embedded).reshape(-1, embedded.shape[0], embedded.shape[1], self.dim_k // self.nums_head)
@@ -56,6 +57,6 @@ class Bert_Self_Attn_Multihead(Bert_MLP):
         out = self.relu(self.drop(self.fc1(output)))
         out = self.fc2(out)
         out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, tags_size]
-        tag_scores = nn.functional.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
+        tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
 
         return tag_scores

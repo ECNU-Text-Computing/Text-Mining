@@ -10,7 +10,7 @@ A class for something.
 import datetime
 import random
 from data_processor import DataProcessor
-from keras.preprocessing.sequence import pad_sequences
+# from keras.preprocessing.sequence import pad_sequences
 import numpy as np
 import os
 import json
@@ -51,10 +51,6 @@ class DataLoader:
             data = list(zip(input_data, output_data))
             random.shuffle(data)
             input_data, output_data = zip(*data)
-
-        # 验证、测试时取全部数据
-        if run_mode in "eval test":
-            self.batch_size = len(output_data)
 
         for i in range(0, len(output_data), self.batch_size):
             # 构建batch数据
