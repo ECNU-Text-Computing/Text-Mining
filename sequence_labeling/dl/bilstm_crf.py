@@ -81,12 +81,12 @@ class BiLSTM_CRF(BaseModel):
 
                 # viterbi解码得到预测。seqs_tag为标签的索引序列。
                 score, seqs_tag = self.crf._viterbi_decode(tag_scores)
-                y_predict = self.index_to_tag(seqs_tag)
+                y_predict = self.index_to_tag(seqs_tag, y_len)
                 all_y_predict = all_y_predict + y_predict
                 # print(len(y_predict_list))
 
                 y_true = y.flatten()
-                y_true = self.index_to_tag(y_true)
+                y_true = self.index_to_tag(y_true, y_len)
                 all_y_true = all_y_true + y_true
                 # print(len(y_true_list))
 

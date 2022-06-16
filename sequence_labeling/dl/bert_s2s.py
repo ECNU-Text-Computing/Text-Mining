@@ -253,12 +253,12 @@ class Bert_S2S(nn.Module):
                 # 返回每一行中最大值的索引
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
                 y_predict = list(predict.numpy())
-                y_predict = self.index_to_tag(y_predict)
+                y_predict = self.index_to_tag(y_predict, self.list_to_length(tag_list))
                 all_y_predict = all_y_predict + y_predict
                 # print(len(y_predict_list))
 
                 y_true = y.flatten()
-                y_true = self.index_to_tag(y_true)
+                y_true = self.index_to_tag(y_true, self.list_to_length(tag_list))
                 all_y_true = all_y_true + y_true
                 # print(len(y_true_list))
 
@@ -272,11 +272,32 @@ class Bert_S2S(nn.Module):
 
             return total_loss / data_num, all_y_true, all_y_predict
 
-    def index_to_tag(self, y):
+    # 根据列表内容，生成描述其成员长度的list
+    def list_to_length(self, input):
+        seq_list = []
+        for line in input:
+            seq_list.append(line.strip().split())
+        lenth_list = [len(seq) for seq in seq_list]
+        return lenth_list
+
+    # 将index转换为token
+    # def index_to_tag(self, y):
+    #     index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
+    #     y_tagseq = []
+    #     for i in range(len(y)):
+    #         y_tagseq.append(index_tag_dict[y[i]])
+    #     return y_tagseq
+
+    # 将index转换为token，并依据y_len(原始数据长度)除去[PAD]
+    def index_to_tag(self, y, y_len):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
         y_tagseq = []
-        for i in range(len(y)):
-            y_tagseq.append(index_tag_dict[y[i]])
+        seq_len = int(len(y) / len(y_len))
+        for i in range(len(y_len)):
+            temp_list = y[i*seq_len:(i+1)*seq_len]
+            for count in range(seq_len):
+                if count < y_len[i]:
+                    y_tagseq.append(index_tag_dict[temp_list[count]])
         return y_tagseq
 
     def index_to_vocab(self, x):

@@ -201,16 +201,16 @@ class BaseModel(nn.Module):
                 total_loss += loss.item()
 
                 # 返回每一行中最大值的索引
-                predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
-                y_predict = list(predict.numpy())
-                y_predict = self.index_to_tag(y_predict)
+                y_predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
+                y_predict = list(y_predict.numpy())
+                y_predict = self.index_to_tag(y_predict, y_len)
                 all_y_predict = all_y_predict + y_predict
-                # print(len(y_predict_list))
+                # print(list(set(all_y_predict)))
 
                 y_true = y.flatten()
-                y_true = self.index_to_tag(y_true)
+                y_true = self.index_to_tag(y_true, y_len)
                 all_y_true = all_y_true + y_true
-                # print(len(y_true_list))
+                # print(list(set(all_y_true)))
 
                 # 专为测试评价结果增加代码
                 # if run_mode == 'test':
@@ -222,12 +222,24 @@ class BaseModel(nn.Module):
 
             return total_loss / data_num, all_y_true, all_y_predict
 
-    def index_to_tag(self, y):
+    # 剔除[PAD]的部分
+    def index_to_tag(self, y, y_len):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
         y_tagseq = []
-        for i in range(len(y)):
-            y_tagseq.append(index_tag_dict[y[i]])
+        seq_len = int(len(y) / len(y_len))
+        for i in range(len(y_len)):
+            temp_list = y[i*seq_len:(i+1)*seq_len]
+            for count in range(seq_len):
+                if count < y_len[i]:
+                    y_tagseq.append(index_tag_dict[temp_list[count]])
         return y_tagseq
+
+    # def index_to_tag(self, y):
+    #     index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
+    #     y_tagseq = []
+    #     for i in range(len(y)):
+    #         y_tagseq.append(index_tag_dict[y[i]])
+    #     return y_tagseq
 
     def index_to_vocab(self, x):
         index_vocab_dict = dict(zip(self.vocab.values(), self.vocab.keys()))
@@ -274,15 +286,15 @@ class BaseModel(nn.Module):
             batch_y.append(each_pair[1])
 
         # 按最长的数据pad
-        batch_x_padded, x_lengths_original = self.pad_seq(batch_x)
-        batch_y_padded, y_lengths_original = self.pad_seq(batch_y)
+        batch_x_padded, x_lengths_original = self.pad_seq(batch_x, self.padding_idx)
+        batch_y_padded, y_lengths_original = self.pad_seq(batch_y, self.padding_idx_tags)
 
         return batch_x_padded, x_lengths_original, batch_y_padded, y_lengths_original
 
-    def pad_seq(self, seq):
+    def pad_seq(self, seq, padding_idx):
         seq_lengths = [len(st) for st in seq]
         # create an empty matrix with padding tokens
-        pad_token = self.padding_idx
+        pad_token = padding_idx
         longest_sent = max(seq_lengths)
         batch_size = len(seq)
         padded_seq = np.ones((batch_size, longest_sent)) * pad_token
@@ -291,6 +303,14 @@ class BaseModel(nn.Module):
             sequence = seq[i]
             padded_seq[i, 0:x_len] = sequence[:x_len]
         return padded_seq, seq_lengths
+
+    # mask padding
+    def generate_masks(self, sequence_tensor, sequence_lengths):
+        batch_size, seq_len = sequence_tensor.shape
+        seq_masks = torch.BoolTensor(batch_size, seq_len)
+        for seq_id, src_len in enumerate(sequence_lengths):
+            seq_masks[seq_id, :src_len] = True
+        return seq_masks
 
     def prtplot(self, y_axis_values):
         x_axis_values = np.arange(1, len(y_axis_values) + 1, 1)
