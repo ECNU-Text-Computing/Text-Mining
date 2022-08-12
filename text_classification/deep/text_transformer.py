@@ -64,12 +64,10 @@ class PositionalEncoding(BaseModel):
         # 变换矩阵 #[1*embed_dim] 帮助绝对位置编码矩阵能够缩放
         div_term = torch.exp(torch.arange(0, embed_dim, 2) *
                              -(math.log(10000.0) / embed_dim))
-        # print(div_term.size())
         self.pe[:, 0::2] = torch.sin(position * div_term)
         self.pe[:, 1::2] = torch.cos(position * div_term)
         # 拓展维度
         self.pe = self.pe.unsqueeze(0)
-        # print(pe.size())
         # 将pe注册成模型的buffer
         # self.register_buffer('pe', self.pe)  # buffer为反向传播时不需要被optimizer更新的参数:
 
