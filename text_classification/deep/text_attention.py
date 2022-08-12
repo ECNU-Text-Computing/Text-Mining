@@ -2,78 +2,78 @@
 # -*- coding:utf8 -*-
 
 """
-RNNAttention
+Self-Attention
 ======
 A class for something.
 """
 
-import os
-import sys
-import argparse
-import datetime
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-sys.path.insert(0, './')
-sys.path.insert(0, '../')
-sys.path.insert(0, '../../')
-from Deep.Base_Model import Base_Model
-from utils.metrics import cal_all
+import argparse
+import datetime
+from deep.base_model import BaseModel
 
-class Attention(Base_Model):
-    def __init__(self, vocab_size, embed_dim, hidden_dim, hidden_dim2,num_classes,num_layers,
+
+class Attention(BaseModel):
+    def __init__(self,vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu, **kwargs):
         super(Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
-                 dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu, **kwargs)
+                                        dropout_rate, learning_rate, num_epochs, batch_size,
+                                        criterion_name, optimizer_name, gpu, **kwargs)
 
-        self.hidden_dim2=hidden_dim2
-        self.num_layers=num_layers
+        self.num_head = 1
+        if 'num_head' in kwargs:
+            self.num_head = kwargs['num_head']
 
-        #2层双向 LSTM batch_size为第一维度
-        self.lstm = nn.LSTM(embed_dim, hidden_dim, num_layers,
-                            bidirectional=True, batch_first=True, dropout=dropout_rate)
-        self.tanh1 = nn.Tanh()
-        # self.u = nn.Parameter(torch.Tensor(hidden_dim * 2, hidden_dim* 2))
-        #nn.Parameter ：将固定的tensor转换成可训练的parameter 定义一个参数向量 query
-        self.w = nn.Parameter(torch.zeros(hidden_dim * 2))  #shape=hidden_dim * 2 #size=[256]
-        self.tanh2 = nn.Tanh()
-        #隐层
-        self.fc1 = nn.Linear(hidden_dim * 2, hidden_dim2)
-        #输出层
-        self.fc = nn.Linear(hidden_dim2,num_classes)
+        assert self.embed_dim % self.num_head == 0
+        self.head_dim = embed_dim // self.num_head  # 每个头的维度
+
+        self.fc_Q = nn.Linear(embed_dim, self.num_head * self.head_dim)
+        self.fc_K = nn.Linear(embed_dim, self.num_head * self.head_dim)
+        self.fc_V = nn.Linear(embed_dim, self.num_head * self.head_dim)
 
     def forward(self, x):
-        # TextAttention: input -> embedding -> LSTM -> KEY,QUERY,VALUE -> 隐层->->output
+        # x: [batch_size, seq_len, embed_dim]
+        # hire: [batch_size, sent_len, seq_len, embed_dim]
+        # view: [batch_size * sent_len, seq_len, embed_dim]
+        batch_size = x.size(0)
+        seq_len = x.size(1)
+        print("batch_size的值是：{}".format(batch_size))
+        print("num_head的值是：{}".format(self.num_head))
+        print("head_dim是：{}".format(self.head_dim))
+        Q = self.fc_Q(x)  # [batch_size, seq_len, num_head * head_dim]
+        print("Q的形状是：{}".format(Q.size()))
+        K = self.fc_K(x)
+        V = self.fc_V(x)
+        # 调整Q, K, V矩阵的形状
+        Q = Q.view(batch_size, seq_len, self.num_head, self.head_dim)
+        Q = Q.transpose(2, 1)
+        Q = Q.reshape(batch_size * self.num_head, seq_len, self.head_dim)  # [batch_size * num_head, seq_len, head_dim]
+        K = K.view(batch_size, seq_len, self.num_head, self.head_dim)
+        K = K.transpose(2, 1)
+        K = K.reshape(batch_size * self.num_head, seq_len, self.head_dim)
+        V = V.view(batch_size, seq_len, self.num_head, self.head_dim)
+        V = V.transpose(2, 1)
+        V = V.reshape(batch_size * self.num_head, seq_len, self.head_dim)
+        print("Q2的形状是：{}".format(Q.size()))
+        # K.permute(0, 2, 1)将K矩阵转置，再与Q矩阵相乘
+        attention = torch.matmul(Q, K.permute(0, 2, 1))  # [batch_size * num_head, seq_len, seq_len]
+        print("attention的形状是：{}".format(attention.size()))
+        # 缩放因子，此处取根号d_k的倒数
+        scale = K.size(-1) ** -0.5
+        # 对attention进行缩放，使训练过程中梯度更稳定
+        attention = attention * scale
+        # 得到概率分布（权重分布）
+        attention = F.softmax(attention, dim=-1)
+        print("attention2的形状是：{}".format(attention.size()))
+        context = torch.matmul(attention, V)  # [batch_size * num_head, seq_len, head_dim]
+        print("context的形状是：{}".format(context.size()))
+        # concat
+        return context
 
-        # input x: [batch_size, seq_len] = [3, 5]
-        #print(x.size())    # [batch_size, seq_len] = [ 3, 5 ]
-        emb = self.embedding(x)  # [batch_size, seq_len, embed_dim]=[3, 5, 64]
-        #print(emb.size())
-        # num_direction:是否双向而取值为1或2，此处为是，
-        H, _ = self.lstm(emb)  # [batch_size, seq_len, hidden_dim * num_direction]=[3, 5, 256]
-        #print(H.size())
-        #各时刻隐状态通过tanh激活函数后的输出作为KEY
-        M = self.tanh1(H)  # [batch_size, seq_len, hidden_dim * num_direction] =[ 3, 5 ,256]
-       # print(M.size())
-        # M = torch.tanh(torch.matmul(H, self.u))
-        #KEY 和 query 相乘，再通过softmax得到每个时刻对应的权重
-        alpha = F.softmax(torch.matmul(M, self.w), dim=1).unsqueeze(-1)   # [3,5, 1]
-       # print(alpha.size())
-        #各时刻的权重和各时刻的隐状态 Value 对应相乘
-        out = H * alpha  # [3, 5, 256]
-       # print(out.size())
-        #再相加
-        out = torch.sum(out, 1)  # [3,256]
-       # print(out.size())
-        out = F.relu(out)
-        out = self.fc1(out) #  [batch_size,hidden2]
-       # print(out.size())
-        out = self.fc(out)  # [128, 64] [batch_size,classes]
-       # print(out.size())
-        return out
+
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
     parser = argparse.ArgumentParser(description='Process some description.')
@@ -81,30 +81,27 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # python3 text_attention.py --phase test
     if args.phase == 'test':
-        # For testing our model, we can set the hyper-parameters as follows.
-        vocab_size, embed_dim, hidden_dim, hidden_dim2, num_classes, num_layers,\
-        dropout_rate, learning_rate, num_epochs, batch_size,\
-        criterion_name, optimizer_name, gpu=\
-            200, 64,128, 64, 2, 2, 0.5, 0.001, 2, 128, 'CrossEntropyLoss', 'Adam', 1
+        vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, \
+        num_epochs, batch_size, criterion_name, optimizer_name, gpu \
+            = 100, 64, 32, 2, 0.5, 0.0001, 3, 64, 'CrossEntropyLoss', 'Adam', 0
 
-        # new an objective.
-        model = Attention( vocab_size, embed_dim, hidden_dim, hidden_dim2,num_classes,num_layers,
-                 dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu)
+        model = Attention(vocab_size, embed_dim, hidden_dim, num_classes,
+                          dropout_rate, learning_rate, num_epochs, batch_size,
+                          criterion_name, optimizer_name, gpu, num_head=2)
 
-        # a simple example of the input.
-        x = [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
-        x = torch.LongTensor(x)  # input: [batch_size, seq_len] = [3, 5]
+        input = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
+                                  [1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
+        embed = model.embedding(input)
+        output = model(embed)
+        print(output)
 
-        # the designed model can produce an output.
-        out = model(x)
-        print(out)
-        print('This is a test process.')
+        print('The test process is done.')
+
     else:
         print("There is no {} function. Please check your command.".format(args.phase))
     end_time = datetime.datetime.now()
     print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
 
-    print('Done Base_Model!')
+    print('Done Attention!')
+
