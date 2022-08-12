@@ -7,72 +7,70 @@ TextSelfAttention
 A class for something.
 """
 
-import os
-import sys
-import argparse
-import datetime
 import torch
-from math import sqrt
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-sys.path.insert(0, './')
-sys.path.insert(0, '../')
-sys.path.insert(0, '../../')
-from Deep.Base_Model import Base_Model
-from utils.metrics import cal_all
+import argparse
+import datetime
+from deep.base_model import BaseModel
 
 
-class Self_Attention(Base_Model):
-
-    # 用来实现mask-attention layer
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,dim_k, dim_v,
+class SelfAttention(BaseModel):
+    def __init__(self,vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu, **kwargs):
-        super(Self_Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
-                 dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu, **kwargs)
-        self.dim_k = dim_k
-        self.dim_v = dim_v
-        # input : batch_size * seq_len * embed_dim
-        # q : batch_size * embed_dim * dim_k
-        # k : batch_size * embed_dim * dim_k
-        # v : batch_size * embed_dim * dim_v
+        super(Attention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                                        dropout_rate, learning_rate, num_epochs, batch_size,
+                                        criterion_name, optimizer_name, gpu, **kwargs)
 
-        # self_attention中Q与K维度一致
-        self.q = nn.Linear(embed_dim, dim_k)
-        self.k = nn.Linear(embed_dim, dim_k)
-        self.v = nn.Linear(embed_dim, dim_v)
-        self._norm_fact = 1 / sqrt(dim_k)  #开根号的倒数
-        #输出层
-        self.fc = nn.Linear(dim_v,num_classes)
+        self.num_head = 1
+        if 'num_head' in kwargs:
+            self.num_head = kwargs['num_head']
+
+        assert self.embed_dim % self.num_head == 0
+        self.head_dim = embed_dim // self.num_head  # 每个头的维度
+
+        self.fc_Q = nn.Linear(embed_dim, self.num_head * self.head_dim)
+        self.fc_K = nn.Linear(embed_dim, self.num_head * self.head_dim)
+        self.fc_V = nn.Linear(embed_dim, self.num_head * self.head_dim)
 
     def forward(self, x):
-        # Text SelfAttention: input -> embedding -> 特征乘以三个矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
-        # -> A'乘以 矩阵 V -> output
-
-        # input x: [batch_size, seq_len] = [3, 5]
-        # embed: [batch_size, seq_len, embedding] = [3, 5, 64]
-        x=self.embedding(x)
-        print(x.size())
-        # 此处将input的矩阵x进行线性变换得到Q,K,V
-        Q = self.q(x)  # Q: batch_size * seq_len * dim_k  [3, 5, 4]
-        #print(Q.size())
-        K = self.k(x)  # K: batch_size * seq_len * dim_k  [3, 5, 4]
-        #print(K.size())
-        V = self.v(x)  # V: batch_size * seq_len * dim_v  [3, 5, 5]
-        #print(V.size())
-        # 根据自注意力机制公式计算  #permute维度换位，将a的维度索引1和维度索引2调换位置
-        atten = nn.Softmax(dim=-1)(
-            torch.bmm(Q, K.permute(0, 2, 1))) * self._norm_fact  # Q * K.T() # batch_size * seq_len * seq_len
-        #print(atten.size()) #[3, 5, 5]
-        output = torch.bmm(atten, V)  # Q * K.T() * V # batch_size * seq_len * dim_v [3, 5, 5]
-        output = torch.sum(output, 1)  #[3,5]
-        #print(output.size())
-        output = F.relu(output)
-        output = self.fc(output)  # [3, 2] [batch_size,classes]
-        #print(output.size())
-        return output
+        # x: [batch_size, seq_len, embed_dim]
+        # hire: [batch_size, sent_len, seq_len, embed_dim]
+        # view: [batch_size * sent_len, seq_len, embed_dim]
+        batch_size = x.size(0)
+        seq_len = x.size(1)
+        print("batch_size的值是：{}".format(batch_size))
+        print("num_head的值是：{}".format(self.num_head))
+        print("head_dim是：{}".format(self.head_dim))
+        Q = self.fc_Q(x)  # [batch_size, seq_len, num_head * head_dim]
+        print("Q的形状是：{}".format(Q.size()))
+        K = self.fc_K(x)
+        V = self.fc_V(x)
+        Q = Q.view(batch_size, seq_len, self.num_head, self.head_dim)
+        Q = Q.transpose(2, 1)
+        Q = Q.reshape(batch_size * self.num_head, seq_len, self.head_dim)  # [batch_size * num_head, seq_len, head_dim]
+        K = K.view(batch_size, seq_len, self.num_head, self.head_dim)
+        K = K.transpose(2, 1)
+        K = K.reshape(batch_size * self.num_head, seq_len, self.head_dim)
+        V = V.view(batch_size, seq_len, self.num_head, self.head_dim)
+        V = V.transpose(2, 1)
+        V = V.reshape(batch_size * self.num_head, seq_len, self.head_dim)
+        print("Q2的形状是：{}".format(Q.size()))
+        # K.permute(0, 2, 1)将K矩阵转置，再与Q矩阵相乘
+        attention = torch.matmul(Q, K.permute(0, 2, 1))  # [batch_size * num_head, seq_len, seq_len]
+        print("attention的形状是：{}".format(attention.size()))
+        # 缩放因子，此处取根号d_k的倒数
+        scale = K.size(-1) ** -0.5
+        # 对attention进行缩放，使训练过程中梯度更稳定
+        attention = attention * scale
+        # 得到概率分布（权重分布）
+        attention = F.softmax(attention, dim=-1)
+        print("attention2的形状是：{}".format(attention.size()))
+        context = torch.matmul(attention, V)  # [batch_size * num_head, seq_len, head_dim]
+        print("context的形状是：{}".format(context.size()))
+        # concat
+        return context
 
 
 if __name__ == '__main__':
@@ -82,31 +80,30 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # python3 text_selfattention.py --phase test
     if args.phase == 'test':
-        # For testing our model, we can set the hyper-parameters as follows.
-        vocab_size, embed_dim, hidden_dim, num_classes, dim_k, dim_v,\
-        dropout_rate, learning_rate, num_epochs, batch_size,\
-        criterion_name, optimizer_name, gpu = 200, 128, 64, 2, 12,8,0.5, 0.0001, 3, 128, 'CrossEntropyLoss', 'Adam', 0
+        vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, \
+        num_epochs, batch_size, criterion_name, optimizer_name, gpu \
+            = 100, 64, 32, 2, 0.5, 0.0001, 3, 64, 'CrossEntropyLoss', 'Adam', 0
 
-        # new an objective.
-        model = Self_Attention(vocab_size, embed_dim, hidden_dim, num_classes,dim_k, dim_v,
-                            dropout_rate, learning_rate, num_epochs, batch_size,
-                         criterion_name, optimizer_name, gpu)
-        # a simple example of the input.
-        input = [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
-        input = torch.LongTensor(input)  # input: [batch_size, seq_len] = [3, 5]
+        model = SelfAttention(vocab_size, embed_dim, hidden_dim, num_classes,
+                          dropout_rate, learning_rate, num_epochs, batch_size,
+                          criterion_name, optimizer_name, gpu, num_head=2)
 
-        # the designed model can produce an output.
-        output= model(input)
+        input = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
+                                  [1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
+        embed = model.embedding(input)
+        output = model(embed)
         print(output)
-        print('This is a test process.')
+
+        print('The test process is done.')
+
     else:
         print("There is no {} function. Please check your command.".format(args.phase))
     end_time = datetime.datetime.now()
     print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
 
-    print('Done Base_Model!')
+    print('Done Self-Attention!')
+
 
 
 
