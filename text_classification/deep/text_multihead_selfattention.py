@@ -4,18 +4,18 @@ import torch
 from math import sqrt
 import torch.nn as nn
 import torch.nn.functional as F
-from deep.base_model import BaseModel
+from base_model import BaseModel
 
 
 # Text SelfAttention: input -> embedding -> 特征乘以三个多头变换后的矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
-class MultiHead_SA(BaseModel):
+class MultiHeadSelfAttention(BaseModel):
     # 用来实现mask-attention layer
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu, **kwargs):
-        super(MultiHead_SA, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
-                                           dropout_rate, learning_rate, num_epochs, batch_size,
-                                           criterion_name, optimizer_name, gpu, **kwargs)
+        super(MultiHeadSelfAttention, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                                                     dropout_rate, learning_rate, num_epochs, batch_size,
+                                                     criterion_name, optimizer_name, gpu, **kwargs)
         # 基本参数设置
         # 注意力头个数
         self.num_heads = 2
@@ -77,9 +77,9 @@ if __name__ == '__main__':
         dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu = 200, 128, 64, 2, 0.5, 0.0001, 3, 128, 'CrossEntropyLoss', 'Adam', 0
 
-        model = MultiHead_SA(vocab_size, embed_dim, hidden_dim, num_classes,
-                             dropout_rate, learning_rate, num_epochs, batch_size,
-                             criterion_name, optimizer_name, gpu)
+        model = MultiHeadSelfAttention(vocab_size, embed_dim, hidden_dim, num_classes,
+                                       dropout_rate, learning_rate, num_epochs, batch_size,
+                                       criterion_name, optimizer_name, gpu)
         input = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]])  # [batch_size, seq_len] = [3, 5]
 
         output = model(input)
@@ -91,4 +91,4 @@ if __name__ == '__main__':
     end_time = datetime.datetime.now()
     print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
 
-    print('Done MultiHead_SA!')
+    print('Done MultiHeadSelfAttention!')
