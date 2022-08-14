@@ -84,9 +84,9 @@ class BaseModel(nn.Module):
                     input_path_test=None, output_path_test=None,
                     save_folder=None):
         model.to(self.device)
-        model.train()
         best_score = 0
         for epoch in range(self.num_epochs):
+            model.train()
             total_y, total_pred_label = [], []
             total_loss = 0
             step_num = 0
