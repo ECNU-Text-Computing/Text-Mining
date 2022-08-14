@@ -7,24 +7,6 @@ TextSelfAttention
 A class for something.
 """
 
-#! /user/bin/evn python
-# -*- coding:utf8 -*-
-
-"""
-TextSelfAttention
-======
-A class for something.
-"""
-
-#! /user/bin/evn python
-# -*- coding:utf8 -*-
-
-"""
-TextSelfAttention
-======
-A class for something.
-"""
-
 import argparse
 import datetime
 import torch
