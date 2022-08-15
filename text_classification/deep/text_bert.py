@@ -42,8 +42,8 @@ from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
 # BERT文本分类
-
-PAD, CLS = '[PAD]', '[CLS]'  # padding符号, bert中综合信息符号
+# padding符号, bert中综合信息符号
+PAD, CLS = '[PAD]', '[CLS]'
 
 
 class BERT(BaseModel):
@@ -68,6 +68,7 @@ class BERT(BaseModel):
 
         for param in self.bert.parameters():
             param.requires_grad = True
+        
         # 输出层
         self.fc = nn.Linear(self.hidden_dim, self.num_classes)
 
@@ -79,10 +80,8 @@ class BERT(BaseModel):
                 lin = line.strip()
                 if not lin:
                     continue
-                # content, label = lin.split('\t')
                 content = lin
                 token = self.tokenizer.tokenize(content)
-                # token = [CLS] + token
                 seq_len = len(token)
                 mask = []
                 token_ids = self.tokenizer.convert_tokens_to_ids(token)
@@ -95,7 +94,6 @@ class BERT(BaseModel):
                         mask = [1] * pad_size
                         token_ids = token_ids[:pad_size]
                         seq_len = pad_size
-                # contents.append((token_ids, int(label), seq_len, mask))
                 contents.append((token_ids, seq_len, mask))
         return contents
 
