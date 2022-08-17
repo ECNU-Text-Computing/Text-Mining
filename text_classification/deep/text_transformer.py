@@ -1,3 +1,8 @@
+'''
+Incomplete
+'''
+
+
 import datetime
 import argparse
 import torch
@@ -32,7 +37,6 @@ class Transformer(BaseModel):
         src = self.embedding(x)  # [batch_size, seq_len, embed_dim]
         tgt = self.embedding(y)  # [batch_size, seq_len, embed_dim]
         hidden = self.transformer(src, tgt)  # [batch_size, seq_len, embed_dim]
-        print(hidden.size())
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out
 
