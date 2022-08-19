@@ -15,19 +15,43 @@ class TextRNN(BaseModel):
                                       dropout_rate, learning_rate, num_epochs, batch_size,
                                       criterion_name, optimizer_name, gpu, **kwargs)
 
-        # RNN堆叠的层数，默认为2层
-        self.num_layers = 2
+        # RNN堆叠的层数，默认为1层
+        self.num_layers = 1
         if 'num_layers' in kwargs:
             self.num_layers = kwargs['num_layers']
         # RNN的方向性，双向RNN则取值2；单向RNN则取1
-        self.num_directions = 2
+        self.num_directions = 1
         if 'num_directions' in kwargs:
             self.num_directions = kwargs['num_directions']
-        self.bidirection = True if self.num_directions == 2 else False
+        self.bidirectional = True if self.num_directions == 2 else False
 
-        # 设置RNN模型的参数
-        self.rnn = nn.RNN(embed_dim, hidden_dim, self.num_layers, batch_first=True, dropout=dropout_rate,
-                            bidirectional=self.bidirection)
+        # 使用的神经网络类型
+        self.rnn_model = 'LSTM'
+        if 'rnn_model' in kwargs:
+            self.rnn_model = kwargs['rnn_model']
+
+        # RNN模型初始化
+        if self.rnn_model == 'LSTM':
+            self.model_name = 'LSTMAttention'
+            if self.bidirectional:
+                self.model_name = 'BiLSTMAttention'
+            self.model = nn.LSTM(input_size=embed_dim, hidden_size=hidden_dim, num_layers=self.num_layers,
+                                 dropout=dropout_rate, batch_first=True, bidirectional=self.bidirectional)
+        elif self.rnn_model == 'GRU':
+            self.model_name = 'GRUAttention'
+            if self.bidirectional:
+                self.model_name = 'BiGRUAttention'
+            self.model = nn.GRU(input_size=embed_dim, hidden_size=hidden_dim, num_layers=self.num_layers,
+                                dropout=dropout_rate, batch_first=True, bidirectional=self.bidirectional)
+        elif self.rnn_model == 'RNN':
+            self.model_name = 'RNNAttention'
+            if self.bidirectional:
+                self.model_name = 'BiRNNAttention'
+            self.model = nn.RNN(input_size=embed_dim, hidden_size=hidden_dim, num_layers=self.num_layers,
+                                dropout=dropout_rate, batch_first=True, bidirectional=self.bidirectional)
+        else:
+            print('No such RNN model!')
+
         # 设置输出层的参数
         self.fc_out = nn.Linear(hidden_dim * self.num_directions, num_classes)
 
@@ -35,9 +59,12 @@ class TextRNN(BaseModel):
     def forward(self, x):
         # batch_x: [batch_size, seq_len]
         embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
-        hidden, _ = self.rnn(embed)  # [batch_size, seq_len, hidden_dim * self.num_directions]
-        # -1表示取该维度从后往前的第一个，即只需要最后一个词的隐藏状态作为输出
-        hidden = self.dropout(hidden[:, -1, :])  # [batch_size, hidden_dim * self.num_directions]
+        # 此处不用“_”代表的最后一个hidden_state的原因：
+        # “_”的形状为[batch_size, num_layers * num_directions, hidden_dim]，多出了num_layers，处理起来步骤较多
+        hidden, _ = self.model(embed)  # [batch_size, seq_len, hidden_dim * self.num_directions]
+        hidden = torch.mean(hidden, dim=1)  # [batch_size, hidden_dim * self.num_directions]
+        print(hidden.size())
+        hidden = self.drop_out(hidden)  # [batch_size, hidden_dim * self.num_directions]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out
 
@@ -54,14 +81,14 @@ if __name__ == '__main__':
         print("This is a test process.")
 
         # 设置测试用例，验证模型是否能够运行
-        # 设置模型参数
-        vocab_size, embed_dim, hidden_dim, num_classes, \
-        dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0
+        # 设置模型参数，测试所用模型为2层的双向LSTM
+        vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
+        criterion_name, optimizer_name, gpu, num_layers, num_directions \
+            = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, 2
         # 创建类的实例
-        model = TextRNN(vocab_size, embed_dim, hidden_dim, num_classes,
-                        dropout_rate, learning_rate, num_epochs, batch_size,
-                        criterion_name, optimizer_name, gpu)
+        model = TextRNN(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs,
+                        batch_size, criterion_name, optimizer_name, gpu,
+                        num_layers=num_layers, num_directions=num_directions)
         # 传入简单数据，查看模型运行结果
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
         output_data = model(input_data)
