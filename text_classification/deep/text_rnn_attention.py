@@ -3,9 +3,9 @@ import datetime
 
 import torch
 from torch import nn
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
-from deep.base_model import BaseModel
+from base_model import BaseModel
 
 
 class RNNAttention(BaseModel):
@@ -17,12 +17,12 @@ class RNNAttention(BaseModel):
                                            criterion_name, optimizer_name, gpu, **kwargs)
         self.model_name = 'RNNAttention'
         # RNN模型参数设置
-        # RNN堆叠的层数，默认为2层
-        self.num_layers = 2
+        # RNN堆叠的层数，默认为1层
+        self.num_layers = 1
         if 'num_layers' in kwargs:
             self.num_layers = kwargs['num_layers']
         # RNN的方向性，双向则取值2；单向则取1
-        self.num_directions = 2
+        self.num_directions = 1
         if 'num_directions' in kwargs:
             self.num_directions = kwargs['num_directions']
         self.bidirectional = True if self.num_directions == 2 else False
@@ -72,7 +72,6 @@ class RNNAttention(BaseModel):
     def forward(self, x):
         # 词嵌入
         x_embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
-        print('x_embed的形状是：{}'.format(x_embed.size()))
         # 将句子填充到统一长度。注意pad_sequence的输入序列需是Tensor的tuple，因此pad操作后需对数据维度进行压缩
         # x_pad = pad_sequence([x_embed], batch_first=True).squeeze(0)  # [batch_size, seq_len, embed_dim]
         # print('x_pad的形状是：{}'.format(x_pad.size()))
@@ -89,13 +88,10 @@ class RNNAttention(BaseModel):
         M = self.tanh(self.out_trans(out_rnn))
         alpha = F.softmax(self.w(M), dim=1)  # 注意：进行softmax操作时一定要指定维度
         out = out_rnn * alpha  # [batch_size, seq_len, hidden_dim * num_directions]
-        print('out的形状是：{}'.format(out.size()))
         out = torch.sum(out, dim=1)  # [batch_size, hidden_dim * num_directions]
-        print('out2的形状是：{}'.format(out.size()))
         out = F.relu(out)
         # 通过两个全连接层后输出
         out = self.fc1(out)  # [batch_size, hidden_dim2]
-        print('out3的形状是：{}'.format(out.size()))
         out = self.fc2(out)  # [batch_size, num_classes]
         return out
 
@@ -110,12 +106,13 @@ if __name__ == '__main__':
 
         if args.phase == 'test':
             vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, \
-            num_epochs, batch_size, criterion_name, optimizer_name, gpu \
-                = 100, 256, 32, 2, 0.5, 0.0001, 3, 64, 'CrossEntropyLoss', 'Adam', 0
+            num_epochs, batch_size, criterion_name, optimizer_name, gpu, num_layers, num_directions \
+                = 100, 256, 32, 2, 0.5, 0.0001, 3, 64, 'CrossEntropyLoss', 'Adam', 0, 2, 2
 
-            model = RNNAttention(vocab_size, embed_dim, hidden_dim, num_classes,
-                                 dropout_rate, learning_rate, num_epochs, batch_size,
-                                 criterion_name, optimizer_name, gpu)
+            # 测试所用模型为双层双向LSTM
+            model = RNNAttention(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate,
+                                 num_epochs, batch_size, criterion_name, optimizer_name, gpu,
+                                 num_layers=num_layers, num_directions=num_directions)
 
             input = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
                                       [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
