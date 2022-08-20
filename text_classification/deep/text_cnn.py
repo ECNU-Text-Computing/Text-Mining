@@ -41,7 +41,7 @@ class TextCNN(BaseModel):
     # 卷积及池化过程
     def con_and_pool(self, x, conv):
         # 卷积，随后去掉额外增加的维度
-        x = F.relu(conv(x)).squeeze()  # [batch_size, num_filters, seq_len - filter_size + 1]
+        x = F.relu(conv(x)).squeeze()  # [batch_size, num_filters, seq_len - len(filter_sizes) + 1]
         # 池化，此处采用了最大池化（Max Pooling）
         x = F.max_pool1d(x, x.size(2)).squeeze()  # [batch_size, num_filters]
         return x
@@ -55,7 +55,7 @@ class TextCNN(BaseModel):
         embed = embed.unsqueeze(1)  # [batch_size, 1, seq_len, embedding]
         # 进行卷积和池化操作，并将结果按列（即维数1）拼接
         cnn_out = torch.cat([self.con_and_pool(embed, con) for con in self.convs], 1)  # size同下
-        cnn_out = self.drop_out(cnn_out)  # [batch_size, num_filters * num_filters]
+        cnn_out = self.drop_out(cnn_out)  # [batch_size, num_filters * len(filter_sizes)]
         hidden = self.fc1(cnn_out)  # [batch_size, hidden_dim]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out
@@ -76,12 +76,12 @@ if __name__ == '__main__':
         # 设置模型参数
         vocab_size, embed_dim, hidden_dim, num_classes, \
         dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu, num_channels, filter_sizes \
+        criterion_name, optimizer_name, gpu, num_filters, filter_sizes \
             = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, [1, 2, 3]
         # 创建类的实例
         model = TextCNN(vocab_size, embed_dim, hidden_dim, num_classes,
                         dropout_rate, learning_rate, num_epochs, batch_size,
-                        criterion_name, optimizer_name, gpu, num_channels=num_channels, filter_sizes=filter_sizes)
+                        criterion_name, optimizer_name, gpu, num_filters=num_filters, filter_sizes=filter_sizes)
         # 传入简单数据，查看模型运行结果
         input_data = torch.LongTensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
         output_data = model(input_data)
