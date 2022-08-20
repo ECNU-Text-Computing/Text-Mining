@@ -1,106 +1,88 @@
-import os
-import sys
+# RCNN的卷积层指的是将该词的上下文信息和自身嵌入一起考虑而非使用卷积层，不存在滑动行为只是一个包括上下文信息的双向RNN，所以实现中没有卷积方法
+# 词嵌入和线性层构成的简易模型
 import argparse
 import datetime
 import torch
-import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence
+from torch.nn.utils.rnn import pad_packed_sequence
+from text_rnn import TextRNN
+from torch import nn
 import torch.nn.functional as F
-import numpy as np
-from torch.autograd import Variable
-from Deep.Base_Model import Base_Model
-from sklearn.feature_extraction.text import TfidfVectorizer
-from Data_Loader import Data_Loader
 
 
-class TextRCNN(Base_Model):
+class TextRCNN(TextRNN):
 
-    """配置参数"""
-    def __init__(self,vocab_size, embed_dim,filter_sizes, hidden_dim, num_classes,
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, num_layers,require_improvement,pad_size,gpu):
-       super(TextRCNN, self).__init__(vocab_size, embed_dim,filter_sizes, hidden_dim, num_classes,
-                                  dropout_rate, learning_rate, num_epochs, batch_size,
-                                  criterion_name, optimizer_name, num_layers,require_improvement,pad_size,gpu)
-       self.filter_sizes=filter_sizes
-       self.num_layers=num_layers
-       self.lstm = nn.LSTM(embed_dim,hidden_dim, num_layers,
-                            bidirectional=True, batch_first=True, dropout=dropout_rate)
-       self.maxpool = nn.MaxPool1d(pad_size)
-       self.fc = nn.Linear(hidden_dim * 2, num_classes)
-        
+                 criterion_name, optimizer_name, gpu, **kwargs):
+        super(TextRCNN, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
+                 dropout_rate, learning_rate, num_epochs, batch_size,
+                 criterion_name, optimizer_name, gpu, **kwargs)
+        self.model_name = 'TextRCNN'
+        self.pad_size = 64
+        if 'pad_size' in kwargs:
+            self.pad_size = kwargs['pad_size']
+
+        self.maxpool = nn.MaxPool1d(self.pad_size)
+        self.out_trans = nn.Linear(self.hidden_dim * self.num_directions + self.embed_dim,
+                                   self.hidden_dim * self.num_directions)
 
     def forward(self, x):
-        # Text RCNN: input -> embedding -> RNN -> Max Pooling -> output
-        # NOTE: You should check other details of the original TextRCNN
+        # input: [batch_size, seq_len]
+        embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
+        # 将句子填充到统一长度。注意pad_sequence的输入序列需是Tensor的tuple，因此pad操作后需对数据维度进行压缩
+        # x_pad = pad_sequence([x_embed], batch_first=True).squeeze(0)  # [batch_size, seq_len, embed_dim]
+        # print('x_pad的形状是：{}'.format(x_pad.size()))
+        input = self.drop_out(embed)
+        seq_len = [s.size(0) for s in input]
+        packed_input = pack_padded_sequence(input, seq_len, batch_first=True, enforce_sorted=False)
+        packed_output, ht = self.model(packed_input, None)  # [batch_size, seq_len, hidden_dim * num_directions]
+        out_rnn, _ = pad_packed_sequence(packed_output, total_length=self.pad_size, batch_first=True)  # size同上
 
-        # input x: [batch_size, seq_len] = [3, 5]
+        out = torch.cat((embed, out_rnn), 2)  # [batch_size, seq_len, hidden_dim * num_directions + embed_dim]
+        out = self.out_trans(F.tanh(out))  # [batch_size, seq_len, hidden_dim * num_directions]
+        out = out.permute(0, 2, 1)  # [batch_size, hidden_dim * num_directions, 1]
+        out = self.maxpool(out).squeeze(-1)  # [batch_size, hidden_dim * num_directions]
+        out = self.drop_out(out)
+        out = self.fc_out(out)  # [batch_size, num_classes]
+        return out
 
-        # embed: [batch_size, seq_len, embedding] = [3, 5, 64]
-        # https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
-        # Please refer to API of LSTM. Especially, you should know the shape of input and output.
-        # Here, the shapes are as follows:
-        # out: [batch_size, seq_len, 2*hidden_dim] = [3, 5, 128], as you set the bidirectional as True.
-        # hidden_state: [2*num_layers, hidden_dim]
-        # cell_state: [2*num_layers, hidden_dim]
-        
-        embed = self.embedding(x)  # [batch_size, seq_len, embeding]=[64, 32, 64]
-        out, (hidden_state,cell_state)= self.lstm(embed)
-        print(out.size())
 
-        # https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html
-        # Please refer to API of MaxPool2d.
-        # Here, the size of pooling kernel is [seq_len, 1]. We use out.size(1) to get the seq_len.
-        # pooled: [batch_size, 1, 2*hidden_dim] = [3, 1, 128]
-        pooled = nn.MaxPool2d((out.size(1), 1))(out)
-        print(pooled.size())
-
-        # We should remove the invalid dimension. In that case, it is the second dimension.
-        # Since the dimensions start at 0, we remove the 1-dimension.
-        # pooled: [batch_size, 2*hidden_dim] = [3, 128]
-        pooled = pooled.squeeze(1)
-        print(pooled.size())
-        
-        # Finally, we use a fully connected layer to get output labels.
-        pred = self.fc(pooled)
-        print(pred.size())
-        
-        return pred
 
 if __name__ == '__main__':
-    start_time = datetime.datetime.now()
+    if __name__ == '__main__':
+        start_time = datetime.datetime.now()
+        parser = argparse.ArgumentParser(description='Process some description.')
+        parser.add_argument('--phase', default='test', help='the function name.')
 
-    parser = argparse.ArgumentParser(description='Process some description.')
-    parser.add_argument('--phase', default='test', help='the function name.')
+        args = parser.parse_args()
 
-    args = parser.parse_args()
+        if args.phase == 'test':
+            # For testing our model, we can set the hyper-parameters as follows.
+            vocab_size, embed_dim, hidden_dim, num_classes, \
+            num_layers, \
+            dropout_rate, learning_rate, num_epochs, batch_size, \
+            criterion_name, optimizer_name, gpu = \
+                200, 64, 64, 2, 2, 0.5, 0.0001, 1, 64, 'CrossEntropyLoss', 'Adam', 1
 
-    # python3 text_rcnn.py --phase test
-    if args.phase == 'test':
-        # For testing our model, we can set the hyper-parameters as follows.
-        vocab_size, embed_dim, hidden_dim, num_classes, \
-        num_layers, \
-        dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu = \
-            200, 64, 64, 2, 2, 0.5, 0.0001, 1, 64, 'CrossEntropyLoss', 'Adam', 1
+            # new an objective.
+            model = TextRCNN(vocab_size, embed_dim, hidden_dim, num_classes,
+                             num_layers,
+                             dropout_rate, learning_rate, num_epochs, batch_size,
+                             criterion_name, optimizer_name, gpu)
 
-        # new an objective.
-        model = TextRCNN(vocab_size, embed_dim, hidden_dim, num_classes,
-                         num_layers,
-                         dropout_rate, learning_rate, num_epochs, batch_size,
-                         criterion_name, optimizer_name, gpu)
+            # a simple example of the input_data.
+            input_data = [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
+            input_data = torch.LongTensor(input_data)  # input_data: [batch_size, seq_len] = [3, 5]
 
-        # a simple example of the input.
-        input = [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]]
-        input = torch.LongTensor(input)  # input: [batch_size, seq_len] = [3, 5]
+            # the designed model can produce an output.
+            output_data = model(input_data)
+            print(output_data)
 
-        # the designed model can produce an output.
-        pred = model(input)
-        print(pred)
-        
-        print('This is a test process.')
-    else:
-        print("There is no {} function. Please check your command.".format(args.phase))
-    end_time = datetime.datetime.now()
-    print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
+            print('This is a test process.')
+        else:
+            print('error! No such method!')
+        end_time = datetime.datetime.now()
+        print('{} takes {} seconds'.format(args.phase, (end_time - start_time).seconds))
 
-    print('Done Base_Model!')
+        print('Done Text RCNN!')
