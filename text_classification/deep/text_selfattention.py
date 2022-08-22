@@ -4,7 +4,10 @@
 """
 TextSelfAttention
 ======
-A class for something.
+Attention本质上是为序列中每个元素都分配一个权重系数。
+如果序列中每一个元素都以(K,V)形式存储，那么attention则通过计算Q和K的相似度来完成。
+Q和K计算出来的相似度反映了取出来的V值的重要程度，即权重，然后加权求和就得到了attention值。
+Self attention机制在KQV模型中的特殊点在于Q=K=V，这也是为什么取名self attention，因为其是文本和文本自己求相似度再和文本本身相乘计算得来的.
 """
 
 import argparse
@@ -88,4 +91,3 @@ if __name__ == '__main__':
     print('{} takes {} seconds.'.format(args.phase, (end_time - start_time).seconds))
 
     print('Done SelfAttention!')
-

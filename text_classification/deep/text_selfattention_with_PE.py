@@ -10,7 +10,7 @@ import argparse
 import math
 import torch
 import torch.nn as nn
-from base_model import BaseModel
+from deep.base_model import BaseModel
 
 
 class SelfAttentionWithPE(BaseModel):
@@ -22,27 +22,28 @@ class SelfAttentionWithPE(BaseModel):
                                                   criterion_name, optimizer_name, gpu, **kwargs)
         # 基本参数设置
         # encoder layer堆叠层数
-        self.num_layers = 2
+        self.num_layers = 6
         if 'num_layers' in kwargs:
             self.num_layers = kwargs['num_layers']
         # 注意力头个数
-        self.num_heads = 2
+        self.num_heads = 1
         if 'num_heads' in kwargs:
             self.num_heads = kwargs['num_heads']
         # 位置编码矩阵
         self.pos_encoder = PositionalEncoding(self.embed_dim, self.dropout_rate)
         # 包含self-attention和feed forward的encoder层
-        encoder_layers = nn.TransformerEncoderLayer(self.embed_dim, self.num_heads, self.hidden_dim, self.dropout_rate)
+        encoder_layer = nn.TransformerEncoderLayer(self.embed_dim, self.num_heads, self.hidden_dim, self.dropout_rate,
+                                                   device=self.device)
         # encoder层堆叠
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.num_layers)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, self.num_layers)
 
     # 模型前向传播
     def forward(self, x):
         # src: [batch_size, seq_len]
-        src = self.embedding(x)  # [batch_size, seq_len, embed_dim]
-        src = src * math.sqrt(self.embed_dim)  # [batch_size, seq_len, embed_dim]
-        src = self.pos_encoder(src)  # [batch_size, seq_len, embed_dim]
-        output = self.transformer_encoder(src)  # [batch_size, seq_len, embed_dim]
+        content = self.embedding(x)  # [batch_size, seq_len, embed_dim]
+        content = content * math.sqrt(self.embed_dim)  # [batch_size, seq_len, embed_dim]
+        content = self.pos_encoder(content)  # [batch_size, seq_len, embed_dim]
+        output = self.transformer_encoder(content)  # [batch_size, seq_len, embed_dim]
         output = torch.mean(output, dim=1)  # [batch_size, embed_dim]
         output = self.fc1(output)  # [batch_size, hidden_dim]
         output = self.fc_out(output)  # [batch_size, num_classes]
@@ -81,6 +82,7 @@ if __name__ == '__main__':
         dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0
 
+        # 测试用例为单头、堆叠6层encoder的模型
         model = SelfAttentionWithPE(vocab_size, embed_dim, hidden_dim, num_classes,
                                     dropout_rate, learning_rate, num_epochs, batch_size,
                                     criterion_name, optimizer_name, gpu)
