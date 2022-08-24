@@ -57,14 +57,11 @@ class BERTCNN(BaseModel):
             nn.Linear(self.hidden_dim2, self.num_classes)
         )
 
-
-
-
     def forward(self, x):
         # input: [batch_size, seq_len]
         output = self.bert(x)  # [batch_size, hidden_dim]
         # [batch_size, 1, seq_len, hidden_dim]
-        cnn_input = torch.stack(output['hidden_states'][-1:], dim=1)
+        cnn_input = output['last_hidden_state'].unsqueeze(1)
         # [batch_size, num_filters * len(filter_sizes)]
         cnn_output = torch.cat([conv(cnn_input).squeeze(-1).squeeze(-1) for conv in self.cnns], dim=-1)
         out = self.fc(cnn_output)  # [batch_size, num_classes]
@@ -88,10 +85,10 @@ if __name__ == '__main__':
         model = BERTCNN(vocab_size, embed_dim, hidden_dim, num_classes,
                         dropout_rate, learning_rate, num_epochs, batch_size,
                         criterion_name, optimizer_name, gpu)
-        # a simple example of the input_data.
+        
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
-                                  [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
-                                  [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
+                                       [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
+                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
 
         output_data = model(input_data)
         print(output_data)
