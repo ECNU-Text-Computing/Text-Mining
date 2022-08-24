@@ -1,8 +1,5 @@
-#! /user/bin/evn python
-# -*- coding:utf8 -*-
-
 """
-BERTCNN
+BERT
 ======
 参考文献：
     1. https://blog.csdn.net/weixin_42237487/article/details/112355703
@@ -65,8 +62,13 @@ class BERT(BaseModel):
         self.hidden_dim2 = self.hidden_dim // 2
         if 'hidden_dim2' in kwargs:
             self.hidden_dim2 = kwargs['hidden_dim2']
+        # 设置输入的是id还是文本
+        self.token = True
+        if 'token' in kwargs:
+            self.token = kwargs['token']
 
         # bert模型设置
+        self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
         self.bert = BertModel.from_pretrained(self.model_path, return_dict=True, output_attentions=True,
                                               output_hidden_states=True)
         for param in self.bert.parameters():
@@ -104,11 +106,20 @@ class BERT(BaseModel):
             print('Using normal mode.')
 
     def forward(self, x):
-        # input_data x: [batch_size, seq_len]
-        output = self.bert(x)
-        out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
-        out = self.drop_out(out)  # [batch_size, num_classes]
-        out = self.fc(out)  # [batch_size, num_classes]
+        if self.token:
+            # input: [batch_size, seq_len]
+            output = self.bert(x)
+            out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
+            out = self.drop_out(out)  # [batch_size, num_classes]
+            out = self.fc(out)  # [batch_size, num_classes]
+        else:
+            # input: [batch_size]
+            max_len = max(len(i) for i in x)
+            tokens = self.tokenizer.encode(x, pad_to_max_lenth=True, return_tensors='pt')
+            output = self.bert(input_ids=tokens)
+            out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
+            out = self.drop_out(out)  # [batch_size, num_classes]
+            out = self.fc(out)  # [batch_size, num_classes]
 
         # 用from pytorch_pretrained_bert时的输出
         # _, pooled = self.bert(context, attention_mask=mask, output_all_encoded_layers=False)
@@ -130,18 +141,20 @@ if __name__ == '__main__':
     if args.phase == 'test':
         print('This is a test process.')
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu, mode \
-            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 'pro'
+        criterion_name, optimizer_name, gpu, mode, token \
+            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 'pro', False
 
         # 测试所用为pro模式
         model = BERT(vocab_size, embed_dim, hidden_dim, num_classes,
                      dropout_rate, learning_rate, num_epochs, batch_size,
-                     criterion_name, optimizer_name, gpu, mode=mode)
-        # a simple example of the input_data.
-        input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
+                     criterion_name, optimizer_name, gpu, mode=mode, token=token)
+        # 测试数据为id时
+        '''input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
                                        [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
-                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
-
+                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]'''
+        # 测试数据为文本时
+        input_data = ['This is a test process.', 'Please wait.', 'The test process is done.']
+        # 训练模型
         output_data = model(input_data)
         print(output_data)
         print('The test process is done!')
