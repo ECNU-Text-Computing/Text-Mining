@@ -2,31 +2,39 @@
 # -*- coding:utf8 -*-
 
 """
-BERT
+BERTCNN
 ======
 参考文献：
-    1、https://blog.csdn.net/weixin_42237487/article/details/112355703
-    2、https://huggingface.co/docs/transformers/v4.21.1/en/model_doc/bert#transformers.BertModel
+    1. https://blog.csdn.net/weixin_42237487/article/details/112355703
+    2. https://huggingface.co/docs/transformers/v4.21.1/en/model_doc/bert#transformers.BertModel
 BERT特点：
-    1、BERT可以解决词的情态表征，解决一词多义问题。
+    1. BERT可以解决词的情态表征，解决一词多义问题。
         Bert生成动态Word Embedding的思路：
-        事先用一个学到的单词的Word Embedding，该Word Embedding在使用的时候已经具备了特定的上下文意思了，可以根据上下文单词的语义去调整（自注意力）单词的Word Embedding表示，
+        事先用一个学到的单词的Word Embedding，该Word Embedding在使用的时候已经具备了特定的上下文意思了，
+        可以根据上下文单词的语义去调整（自注意力）单词的Word Embedding表示，
         经过调整后的Word Embedding更能表达在这个上下文中的具体含义，自然也就解决了多义词的问题了。
-    2、Bert编码器（特征提取）最终可以输出两个Embedding信息：单词的Word Embedding和句子的Embedding。
-    3、可以提取出Bert编码器输出的句子Embedding，经过全连接的网络层对句子进行情感判断。这个Embedding携带了当前句子的主要信息。
+    2. Bert编码器（特征提取）最终可以输出两个Embedding信息：单词的Word Embedding和句子的Embedding。
+    3. 可以提取出Bert编码器输出的句子Embedding，经过全连接的网络层对句子进行情感判断。这个Embedding携带了当前句子的主要信息。
 模型由输入层、编码层和输出层三个部分组成
 BERT的输入：input_data
-    1、Token Embedding：词特征（词向量）的嵌入，针对中文，目前只支持字特征嵌入
-    2、Segment Embedding：词的句子级特征嵌入，针对双句子输入任务，做句子A，B嵌入，针对单句子任务，只做句子A嵌入
-    3、Position Embedding：词的位置特征，针对中文，目前最大长度为 512
+    1. Token Embedding：词特征（词向量）的嵌入，针对中文，目前只支持字特征嵌入
+    2. Segment Embedding：词的句子级特征嵌入，针对双句子输入任务，做句子A，B嵌入，针对单句子任务，只做句子A嵌入
+    3. Position Embedding：词的位置特征，针对中文，目前最大长度为 512
+BERT的输出：
+    1. last_hidden_state：torch.FloatTensor类型，最后一个隐藏层的序列的输出，形状为[batch_size, seq_len, hidden_size]
+    2. pooler_output：torch.FloatTensor类型，[CLS]的这个token的输出，形状为[batch_size, hidden_size]
+    3. hidden_states(可选项)：tuple(torch.FloatTensor)类型。需要指定config.output_hidden_states=True。
+    它是一个元组，第一个元素是embedding，其余元素是各层的输出，每个元素的形状为[batch_size, seq_len, hidden_size]
+    4. attentions(可选项)：tuple(torch.FloatTensor)类型。需要指定config.output_attentions=True。
+    它也是一个元组，它的元素是每一层的注意力权重，用于计算self-attention heads的加权平均值，形状为[batch_size, seq_len, hidden_size]
 BERT的下游任务：MLM或NSP
     1、MLM：掩码语言模型
     2、NSP：句子连贯性判断
 ======
-[MASK] ：表示这个词被遮挡。需要带着[]，并且mask是大写，对应的编码是103
-[SEP]: 表示分隔开两个句子。对应的编码是102
-[CLS]:用于分类场景，该位置可表示整句话的语义。对应的编码是101
 [UNK]：文本中的元素不在词典中，用该符号表示生僻字。对应编码是100
+[CLS]:用于分类场景，该位置可表示整句话的语义。对应的编码是101
+[SEP]: 表示分隔开两个句子。对应的编码是102
+[MASK] ：表示这个词被遮挡。需要带着[]，并且mask是大写，对应的编码是103
 [PAD]：针对有长度要求的场景，填充文本长度，使得文本长度达到要求。对应编码是0
 """
 
@@ -98,11 +106,7 @@ class BERT(BaseModel):
     def forward(self, x):
         # input_data x: [batch_size, seq_len]
         output = self.bert(x)
-        if self.mode == 'adap':
-            out = output['hidden_states'][-1][:, 0]
-        else:
-            out = output['pooler_output']
-        # [batch_size, hidden_dim]
+        out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
         out = self.drop_out(out)  # [batch_size, num_classes]
         out = self.fc(out)  # [batch_size, num_classes]
 
@@ -129,14 +133,14 @@ if __name__ == '__main__':
         criterion_name, optimizer_name, gpu, mode \
             = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 'pro'
 
-        # 测试所用为adap模式
+        # 测试所用为pro模式
         model = BERT(vocab_size, embed_dim, hidden_dim, num_classes,
                      dropout_rate, learning_rate, num_epochs, batch_size,
                      criterion_name, optimizer_name, gpu, mode=mode)
         # a simple example of the input_data.
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
-                                  [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
-                                  [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
+                                       [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
+                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
 
         output_data = model(input_data)
         print(output_data)
