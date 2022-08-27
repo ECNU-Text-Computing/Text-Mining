@@ -44,7 +44,7 @@ import random
 import torch
 import torch.nn as nn
 import numpy as np
-from utils.metrics import cal_all
+from utils.metrics import cal_all, cal_acc
 from transformers import BertModel, BertTokenizer
 
 
@@ -54,7 +54,7 @@ class BERT(nn.Module):
                  dropout_rate, learning_rate, num_epochs, batch_size,
                  criterion_name, optimizer_name, gpu, **kwargs):
         super(BERT, self).__init__()
-        # 一些重要的参数，这些参数几乎在所有的深度学习模型中都会被用到。
+        # 一些重要的参数，这些参数几乎在所有的深度学习模型中都会被用到。 
 
         self.vocab_size = vocab_size  # 词表大小
         self.embed_dim = embed_dim  # 词嵌入/向量的维度
@@ -146,7 +146,7 @@ class BERT(nn.Module):
         print("Device: {}.".format(self.device))
 
     def forward(self, x):
-        # input: [batch_size, seq_len]
+        # x: [batch_size, seq_len]
         output = self.bert(x)['last_hidden_state']
         out = torch.mean(output, dim=1)  # [batch_size, hidden_dim]
         out = self.drop_out(out)  # [batch_size, num_classes]
@@ -254,18 +254,29 @@ class BERT(nn.Module):
             metric = cal_all
             if self.metrics_num == 4:
                 metric = cal_all
-            metric_score = metric(np.array(total_y), np.array(total_pred_label))
-            sorted_metric_score = sorted(metric_score.items(), key=lambda x: x[0])
-            metrics_string = '\t'.join(['loss'] + [metric_name[1:] for metric_name, _ in sorted_metric_score])
-            score_string = '\t'.join(['{:.2f}'.format(total_loss/sample_num)] + ['{:.2f}'.format(score) for _, score in sorted_metric_score])
-            print("{}\t{}\t{}".format('train', epoch, metrics_string))
-            print("{}\t{}\t{}".format('train', epoch, score_string))
+                metric_score = metric(np.array(total_y), np.array(total_pred_label))
+                sorted_metric_score = sorted(metric_score.items(), key=lambda x: x[0])
+                metrics_string = '\t'.join(['loss'] + [metric_name[1:] for metric_name, _ in sorted_metric_score])
+                score_string = '\t'.join(
+                    ['{:.2f}'.format(total_loss / sample_num)] + ['{:.2f}'.format(score) for _, score in
+                                                                  sorted_metric_score])
+                print("{}\t{}\t{}".format('train', epoch, metrics_string))
+                print("{}\t{}\t{}".format('train', epoch, score_string))
+            else:
+                metric = cal_acc
+                metric_score = metric(np.array(total_y), np.array(total_pred_label))
+                score_string = '\t'.join(['{:.2f}'.format(total_loss/sample_num)] + ['{:.2f}'.format(metric_score)])
+                print("{}\t{}\t{}".format('train', epoch, 'loss\tacc'))
+                print("{}\t{}\t{}".format('train', epoch, score_string))
 
             # 评价模型在验证数据集上的性能。
             if input_path_val and output_path_val:
                 metric_score = \
                     self.eval_model(model, input_path_val, output_path_val,'val', epoch)
-                acc = metric_score['1acc']
+                if self.metrics_num == 4:
+                    acc = metric_score['1acc']
+                else:
+                    acc = metric_score
                 torch.save(model, '{}{}.ckpt'.format(save_folder, epoch))
                 print("Save model to {}.".format('{}{}.ckpt'.format(save_folder, epoch)))
                 # 以accuracy作为主要指标，将验证集上accuracy最大的轮次得到的模型保存下来。
@@ -327,13 +338,20 @@ class BERT(nn.Module):
         metric = cal_all
         if self.metrics_num == 4:
             metric = cal_all
-        metric_score = metric(np.array(total_y), np.array(total_pred_label))
-        sorted_metric_score = sorted(metric_score.items(), key=lambda x: x[0])
-        metrics_string = '\t'.join(['loss'] + [metric_name[1:] for metric_name, _ in sorted_metric_score])
-        score_string = '\t'.join(
-            ['{:.2f}'.format(total_loss / sample_num)] + ['{:.2f}'.format(score) for _, score in sorted_metric_score])
-        print("{}\t{}\t{}".format(phase, epoch, metrics_string))
-        print("{}\t{}\t{}".format(phase, epoch, score_string))
+            metric_score = metric(np.array(total_y), np.array(total_pred_label))
+            sorted_metric_score = sorted(metric_score.items(), key=lambda x: x[0])
+            metrics_string = '\t'.join(['loss'] + [metric_name[1:] for metric_name, _ in sorted_metric_score])
+            score_string = '\t'.join(
+                ['{:.2f}'.format(total_loss / sample_num)] + ['{:.2f}'.format(score) for _, score in
+                                                              sorted_metric_score])
+            print("{}\t{}\t{}".format('train', epoch, metrics_string))
+            print("{}\t{}\t{}".format('train', epoch, score_string))
+        else:
+            metric = cal_acc
+            metric_score = metric(np.array(total_y), np.array(total_pred_label))
+            score_string = '\t'.join(['{:.2f}'.format(total_loss / sample_num)] + ['{:.2f}'.format(metric_score)])
+            print("{}\t{}\t{}".format('train', epoch, 'loss\tacc'))
+            print("{}\t{}\t{}".format('train', epoch, score_string))
         return metric_score
 
 
@@ -348,7 +366,7 @@ if __name__ == '__main__':
         print('This is a test process.')
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu, mode \
-            = 100, 64, 32, 2, 0.5, 0.0001, 3, 8, 'CrossEntropyLoss', 'Adam', 0, 'pro'
+            = 100, 768, 768, 2, 0.5, 0.0001, 3, 8, 'CrossEntropyLoss', 'Adam', 0, 'pro'
 
         # 测试所用为pro模式
         model = BERT(vocab_size, embed_dim, hidden_dim, num_classes,
