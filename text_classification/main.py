@@ -18,6 +18,7 @@ from shallow.svm import SVM
 from deep.base_model import BaseModel
 from deep.text_cnn import TextCNN
 from deep.bert import BERT
+from deep.hierarchy.hierarchical_att import HierAttNet
 
 # 保存机器学习模型的全局变量。
 ml_model_dict = {
@@ -29,7 +30,8 @@ ml_model_dict = {
 dl_model_dict = {
     'mlp': BaseModel,
     'textcnn': TextCNN,
-    'bert': BERT
+    'bert': BERT,
+    'hierarchical': HierAttNet
 }
 
 
@@ -86,6 +88,8 @@ def main_dl(config):
     # 数据导入类的实例化。
     data_loader = DataLoader()
 
+
+
     # 导入字典。
     # 该字典可将每个字符映射为一个id，进而可将一个字符序列转化为一个id的序列。
     # 根据config中的data_name，选择对应数据的字典。
@@ -93,7 +97,7 @@ def main_dl(config):
     word_dict_path = "exp/{}/vocab.cover1.min1.json".format(data_name)
     with open(word_dict_path, 'r') as fp:
         word_dict = json.load(fp)
-        print("Load word dict from {}.".format(word_dict_path))
+        print("Load sent dict from {}.".format(word_dict_path))
 
     # 训练/验证/测试.输入 数据集的地址。
     input_path_train = 'datasets/{}/train.input_data'.format(data_name)
@@ -130,12 +134,12 @@ def main_dl(config):
 
     # 调用这个类的train_model函数来训练这个模型。
     if model_name == 'bert':
-        model.train_model(model, input_path_train, output_path_train,
+        model.train_model(model, model_name, input_path_train, output_path_train,
                           input_path_val=input_path_val, output_path_val=output_path_val,
                           input_path_test=input_path_test, output_path_test=output_path_test,
                           save_folder=save_model_folder)
     else:
-        model.train_model(model, data_loader.data_generator, input_path_train, output_path_train, word_dict,
+        model.train_model(model, model_name, data_loader.data_generator, input_path_train, output_path_train, word_dict,
                           input_path_val=input_path_val, output_path_val=output_path_val,
                           input_path_test=input_path_test, output_path_test=output_path_test,
                           save_folder=save_model_folder)
