@@ -23,20 +23,16 @@ class HierAttNet(RNNAttention):
 
     def forward(self, x):
         # input: [batch_size, sent_len, seq_len]
-        x = x.permute(1, 0, 2)  # [sent_len, batch_size, seq_len]
-        output_list = []
+        batch_size, sent_len, seq_len = x.size()
+        x = x.reshape(-1, seq_len)  # [batch_size * sent_len, seq_len]
+        embed_word = self.embedding(x)
         # word level
-        for i in x:
-            embed = self.embedding(i)  # [batch_size, seq_len, embed_dim]
-            word_hidden, word_hn = self.model(embed)  # hidden: [batch_size, seq_len, hidden_dim * num_directions]
-            # attention
-            M = self.out_trans(word_hidden)  # [batch_size, seq_len, hidden_dim * num_directions]
-            alpha = F.softmax(self.w(M), dim=1)
-            word_hidden = torch.sum(word_hidden * alpha, 1)  # [batch_size, hidden_dim * num_directions]
-            output_list.append(word_hidden)
-        sent_in = torch.stack(output_list)  # [sent_len, batch_size, hidden_dim * num_directions]
-        sent_in = sent_in.permute(1, 0, 2)  # [batch_size, sent_len, hidden_dim * num_directions]
+        word_hidden, word_hn = self.model(embed_word)  # hidden: [batch_size * sent_len, seq_len, hidden_dim * num_directions]
+        M = self.out_trans(word_hidden)  # [batch_size * sent_len, seq_len, hidden_dim * num_directions]
+        alpha = F.softmax(self.w(M), dim=1)
+        word_hidden = torch.sum(word_hidden * alpha, 1)  # [batch_size * sent_len, hidden_dim * num_directions]
         # sentence level
+        sent_in = word_hidden.reshape(batch_size, sent_len, -1)  # [batch_size, sent_len, hidden_dim * num_directions]
         sent_hidden, _ = self.model(sent_in)  # hidden: [batch_size, sent_len, hidden_dim * num_directions]
         M2 = self.out_trans(sent_hidden)
         alpha2 = F.softmax(self.w(M2), dim=1)
