@@ -31,7 +31,7 @@ dl_model_dict = {
     'mlp': BaseModel,
     'textcnn': TextCNN,
     'bert': BERT,
-    'hierarchical': HierAttNet
+    'hierarchical_attention': HierAttNet
 }
 
 
@@ -84,6 +84,7 @@ def main_ml(config):
 def main_dl(config):
     data_name = config['data_name']  # aapr
     model_name = config['model_name']  # mlp
+    feature = config['feature']  # hierarchical
 
     # 数据导入类的实例化。
     data_loader = DataLoader()
@@ -133,13 +134,13 @@ def main_dl(config):
     model = dl_model_dict[model_name](vocab_size=vocab_size, **config)
 
     # 调用这个类的train_model函数来训练这个模型。
-    if model_name == 'bert':
-        model.train_model(model, model_name, input_path_train, output_path_train,
+    if feature == 'bert':
+        model.train_model(model, feature, input_path_train, output_path_train,
                           input_path_val=input_path_val, output_path_val=output_path_val,
                           input_path_test=input_path_test, output_path_test=output_path_test,
                           save_folder=save_model_folder)
     else:
-        model.train_model(model, model_name, data_loader.data_generator, input_path_train, output_path_train, word_dict,
+        model.train_model(model, feature, data_loader.data_generator, input_path_train, output_path_train, word_dict,
                           input_path_val=input_path_val, output_path_val=output_path_val,
                           input_path_test=input_path_test, output_path_test=output_path_test,
                           save_folder=save_model_folder)

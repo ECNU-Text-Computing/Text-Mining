@@ -120,7 +120,7 @@ class DataLoader(DataProcessor):
         return x, y
 
     # 将文本转化为深度学习模型需要的数据格式。
-    def data_generator(self, input_path, output_path, model_name,
+    def data_generator(self, input_path, output_path, feature,
                        word_dict=None, batch_size=64, pad_size=16, shuffle=True):
 
         print("Load input_data data from {}.".format(input_path))
@@ -151,7 +151,7 @@ class DataLoader(DataProcessor):
 
         # 按照batch将数据输出给深度学习模型。
         # 注意，因为下面使用了yield而非return，所以这个函数是一个生成器。具体的使用见深度学习Base_Model的train部分。
-        if model_name == 'hierarchical':
+        if feature == 'hierarchical':
             for i in range(0, len(input_data), batch_size):
                 new_batch = []
                 # 读取输入数据的下一个batch。
