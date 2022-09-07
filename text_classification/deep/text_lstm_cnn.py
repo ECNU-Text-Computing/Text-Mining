@@ -2,7 +2,7 @@
 # -*- coding:utf8 -*-
 
 """
-LSTMCNN
+CNNLSTM
 ======
 A class for something.
 """
@@ -26,8 +26,8 @@ class LSTMCNN(TextRNN):
 
         # 卷积核的数量
         self.num_filters = 8
-        if 'num_filters' in kwargs:
-            self.num_filters = kwargs['num_filters']
+        if 'out_channels' in kwargs:
+            self.num_filters = kwargs['out_channels']
         # 卷积核的大小。数据类型为列表，列表长度即为卷积核数量
         self.filter_sizes = [2, 3, 4]
         if 'filter_sizes' in kwargs:
@@ -42,9 +42,9 @@ class LSTMCNN(TextRNN):
     # 卷积及池化过程
     def con_and_pool(self, x, conv):
         # 卷积，随后去掉额外增加的维度
-        x = F.relu(conv(x)).squeeze()  # [batch_size, num_filters, seq_len - len(filter_sizes) + 1]
+        x = F.relu(conv(x)).squeeze()  # [batch_size, out_channels, seq_len - len(filter_sizes) + 1]
         # 池化，此处采用了最大池化（Max Pooling）
-        x = F.max_pool1d(x, x.size(2)).squeeze()  # [batch_size, num_filters]
+        x = F.max_pool1d(x, x.size(2)).squeeze()  # [batch_size, out_channels]
         return x
 
     # 模型的前向传播
@@ -55,10 +55,10 @@ class LSTMCNN(TextRNN):
         # RNN模型
         hidden, _ = self.model(embed)  # [batch_size, seq_len, hidden_dim * num_directions]
         # 增加维度。由于卷积操作是在二维平面上进行的，而词向量内部不能拆分（拆分没有意义），因此需要增加一维
-        embed = hidden.unsqueeze(1)  # [batch_size, 1, seq_len, embedding]
+        cnn_in = hidden.unsqueeze(1)  # [batch_size, 1, seq_len, hidden_dim * num_directions]
         # 进行卷积和池化操作，并将结果按列（即维数1）拼接
-        cnn_out = torch.cat([self.con_and_pool(embed, con) for con in self.convs], 1)  # size同下
-        cnn_out = self.drop_out(cnn_out)  # [batch_size, num_filters * len(filter_sizes)]
+        cnn_out = torch.cat([self.con_and_pool(cnn_in, con) for con in self.convs], 1)  # size同下
+        cnn_out = self.drop_out(cnn_out)  # [batch_size, out_channels * len(filter_sizes)]
         hidden = self.fc1(cnn_out)  # [batch_size, hidden_dim]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out
@@ -76,15 +76,15 @@ if __name__ == '__main__':
         print('This is a test process.')
 
         # 设置测试用例，验证模型是否能够运行
-        # 设置模型参数
+        # 设置模型参数，测试所用模型为3卷积核2通道的CNN+2层双向LSTM
         vocab_size, embed_dim, hidden_dim, num_classes, \
         dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu, num_filters, filter_sizes, num_layers, num_directions \
+        criterion_name, optimizer_name, gpu, out_channels, filter_sizes, num_layers, num_directions \
             = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, [1, 2, 3], 2, 2
         # 测试所用为2层、双向LSTM+CNN
         model = LSTMCNN(vocab_size, embed_dim, hidden_dim, num_classes,
                         dropout_rate, learning_rate, num_epochs, batch_size,
-                        criterion_name, optimizer_name, gpu, num_filters=num_filters, filter_sizes=filter_sizes,
+                        criterion_name, optimizer_name, gpu, out_channels=out_channels, filter_sizes=filter_sizes,
                         num_layers=num_layers, num_directions=num_directions)
         # 传入简单数据，查看模型运行结果
         # [batch_size, seq_len] = [3, 5]
