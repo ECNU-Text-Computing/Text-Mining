@@ -133,17 +133,19 @@ def main_dl(config):
     # 实例化深度学习模型。具体实例化哪个模型由model_name决定。
     model = dl_model_dict[model_name](vocab_size=vocab_size, **config)
 
-    # 调用这个类的train_model函数来训练这个模型。
+    # data_generator = 选择
     if feature == 'bert':
-        model.train_model(model, feature, input_path_train, output_path_train,
-                          input_path_val=input_path_val, output_path_val=output_path_val,
-                          input_path_test=input_path_test, output_path_test=output_path_test,
-                          save_folder=save_model_folder)
+        generator = data_loader.bert_data_generator
+    elif feature == 'hierarchical':
+        generator = data_loader.hierarchical_data_generator
     else:
-        model.train_model(model, feature, data_loader.data_generator, input_path_train, output_path_train, word_dict,
-                          input_path_val=input_path_val, output_path_val=output_path_val,
-                          input_path_test=input_path_test, output_path_test=output_path_test,
-                          save_folder=save_model_folder)
+        generator = data_loader.data_generator
+
+    # 调用这个类的train_model函数来训练这个模型。
+    model.train_model(model, feature, generator, input_path_train, output_path_train, word_dict,
+                      input_path_val=input_path_val, output_path_val=output_path_val,
+                      input_path_test=input_path_test, output_path_test=output_path_test,
+                      save_folder=save_model_folder)
 
 
 # 对任何Python脚本的入口，都在main这里。

@@ -27,6 +27,7 @@ from joblib import load, dump
 import numpy as np
 # from keras.preprocessing.sequence import pad_sequences
 from torch.nn.utils.rnn import pad_sequence
+from transformers import BertModel, BertTokenizer
 
 
 class DataLoader(DataProcessor):
@@ -120,7 +121,62 @@ class DataLoader(DataProcessor):
         return x, y
 
     # 将文本转化为深度学习模型需要的数据格式。
-    def data_generator(self, input_path, output_path, feature,
+    def data_generator(self, input_path, output_path,
+                       word_dict=None, batch_size=64, shuffle=True):
+
+        print("Load input_data data from {}.".format(input_path))
+        print("Load output_data from {}.".format(output_path))
+
+        # 读取输入数据。
+        # type(src) = list
+        with open(input_path, 'r') as fp:
+            input_data = fp.readlines()
+
+        # 读取输出数据。
+        # type(out) = list
+        with open(output_path, 'r') as fp:
+            output_data = fp.readlines()
+
+        # 如果你的机器资源不够，一次跑不完数据，为了验证整个流程（pipeline）是对的，可以采用小一点的数据规模。
+        # 比方说，这里设置了1000，你可以可以设置100或者200等。
+        # 如果你可以跑全量数据，那么你可以注释掉这行代码。
+        # 记得有一些可用可不用的代码，可以注释掉而不要直接删掉。免得以后用的时候还要重新写。
+        # src = src[:1000]
+        # out = out[:1000]
+
+        # 是否将数据随机打乱？
+        if shuffle:
+            data = list(zip(input_data, output_data))
+            random.shuffle(data)
+            input_data, output_data = zip(*data)
+
+        # 按照batch将数据输出给深度学习模型。
+        # 注意，因为下面使用了yield而非return，所以这个函数是一个生成器。具体的使用见深度学习Base_Model的train部分。
+
+        for i in range(0, len(output_data), batch_size):
+            # 每次循环开始时，都先清空batch_input。
+            batch_input = []
+            # 读取输入数据的下一个batch。
+            for line in input_data[i: i + batch_size]:
+                new_line = []
+                # 将字符的列表转化为id的列表。
+                for word in line.strip().split():
+                    # 如果有数据不在字典中，则使用UNK的id。
+                    new_line.append(int(word_dict[word]) if word in word_dict else int(word_dict['UNK']))
+                # 将转化后的id列表append到batch_input中。
+                # 因为要使用toch的pad函数，所以此处就要把每个id列表转化为torch的Tensor格式。
+                batch_input.append(torch.Tensor(new_line))
+            # batch_x = pad_sequences(new_batch, maxlen=None)
+            # 将不等长的数据进行pad操作。
+            # [[1, 2], [1, 2, 3]] ==> [[1, 2, 0], [1, 2, 3]]
+            batch_x = pad_sequence(batch_input, batch_first=True).detach().numpy()
+            # 提取输出数据的下一个batch。
+            batch_output = [int(label.strip()) for label in output_data[i: i + batch_size]]
+            batch_y = np.array(batch_output)
+
+            yield batch_x, batch_y
+
+    def hierarchical_data_generator(self, input_path, output_path,
                        word_dict=None, batch_size=64, pad_size=16, shuffle=True):
 
         print("Load input_data data from {}.".format(input_path))
@@ -151,64 +207,80 @@ class DataLoader(DataProcessor):
 
         # 按照batch将数据输出给深度学习模型。
         # 注意，因为下面使用了yield而非return，所以这个函数是一个生成器。具体的使用见深度学习Base_Model的train部分。
-        if feature == 'hierarchical':
-            for i in range(0, len(input_data), batch_size):
-                new_batch = []
-                # 读取输入数据的下一个batch。
-                for doc in input_data[i: i + batch_size]:
-                    new_doc = []
-                    # 将该文档的句子拆分开
-                    for sent in doc.strip().split('.'):
-                        new_sent = []
-                        # 将该句子的单词拆分开，并将字符的列表转化为id的列表。
-                        for word in sent.strip().split():
-                            new_sent.append(int(word_dict[word]) if word in word_dict else int(word_dict['UNK']))
-                        # 对于seq_len的padding操作
-                        while True:
-                            if len(new_sent) > pad_size:
-                                new_doc.append(torch.Tensor(new_sent[:pad_size]))
-                                new_sent = new_sent[pad_size:-1]
-                            elif len(new_sent) < pad_size:
-                                lst = [0] * int(pad_size - len(new_sent))
-                                new_sent.extend(lst)
-                                new_doc.append(torch.Tensor(new_sent))
-                                break
-                            else:
-                                new_doc.append(torch.Tensor(new_sent))
-                                break
-                    # 将转化后的id列表append到batch_input中。
-                    # 因为要使用toch的pad函数，所以此处就要把每个id列表转化为torch的Tensor格式。
-                    new_batch.append(torch.stack(new_doc))
-                batch_x = pad_sequence(new_batch, batch_first=True).detach().numpy()
-                # 提取输出数据的下一个batch。
-                batch_output = [int(label.strip()) for label in output_data[i: i + batch_size]]
-                batch_y = np.array(batch_output)
+        for i in range(0, len(input_data), batch_size):
+            new_batch = []
+            # 读取输入数据的下一个batch。
+            for doc in input_data[i: i + batch_size]:
+                new_doc = []
+                # 将该文档的句子拆分开
+                for sent in doc.strip().split('.'):
+                    new_sent = []
+                    # 将该句子的单词拆分开，并将字符的列表转化为id的列表。
+                    for word in sent.strip().split():
+                        new_sent.append(int(word_dict[word]) if word in word_dict else int(word_dict['UNK']))
+                    # 对于seq_len的padding操作
+                    while True:
+                        if len(new_sent) > pad_size:
+                            new_doc.append(torch.Tensor(new_sent[:pad_size]))
+                            new_sent = new_sent[pad_size:-1]
+                        elif len(new_sent) < pad_size:
+                            lst = [0] * int(pad_size - len(new_sent))
+                            new_sent.extend(lst)
+                            new_doc.append(torch.Tensor(new_sent))
+                            break
+                        else:
+                            new_doc.append(torch.Tensor(new_sent))
+                            break
+                # 将转化后的id列表append到batch_input中。
+                # 因为要使用toch的pad函数，所以此处就要把每个id列表转化为torch的Tensor格式。
+                new_batch.append(torch.stack(new_doc))
+            batch_x = pad_sequence(new_batch, batch_first=True).detach().numpy()
+            # 提取输出数据的下一个batch。
+            batch_output = [int(label.strip()) for label in output_data[i: i + batch_size]]
+            batch_y = np.array(batch_output)
 
-                yield batch_x, batch_y
+            yield batch_x, batch_y
 
-        else:
-            for i in range(0, len(output_data), batch_size):
-                # 每次循环开始时，都先清空batch_input。
-                batch_input = []
-                # 读取输入数据的下一个batch。
-                for line in input_data[i: i + batch_size]:
-                    new_line = []
-                    # 将字符的列表转化为id的列表。
-                    for word in line.strip().split():
-                        # 如果有数据不在字典中，则使用UNK的id。
-                        new_line.append(int(word_dict[word]) if word in word_dict else int(word_dict['UNK']))
-                    # 将转化后的id列表append到batch_input中。
-                    # 因为要使用toch的pad函数，所以此处就要把每个id列表转化为torch的Tensor格式。
-                    batch_input.append(torch.Tensor(new_line))
-                # batch_x = pad_sequences(new_batch, maxlen=None)
-                # 将不等长的数据进行pad操作。
-                # [[1, 2], [1, 2, 3]] ==> [[1, 2, 0], [1, 2, 3]]
-                batch_x = pad_sequence(batch_input, batch_first=True).detach().numpy()
-                # 提取输出数据的下一个batch。
-                batch_output = [int(label.strip()) for label in output_data[i: i + batch_size]]
-                batch_y = np.array(batch_output)
+    def bert_data_generator(self, input_path, output_path, batch_size, shuffle=True):
 
-                yield batch_x, batch_y
+        print("Load input_data data from {}.".format(input_path))
+        print("Load output_data from {}.".format(output_path))
+
+        # 读取输入数据。
+        # type(src) = list
+        with open(input_path, 'r') as fp:
+            input_data = fp.readlines()
+
+        # 读取输出数据。
+        # type(out) = list
+        with open(output_path, 'r') as fp:
+            output_data = fp.readlines()
+
+        # 如果你的机器资源不够，一次跑不完数据，为了验证整个流程（pipeline）是对的，可以采用小一点的数据规模。
+        # 比方说，这里设置了1000，你可以可以设置100或者200等。
+        # 如果你可以跑全量数据，那么你可以注释掉这行代码。
+        # 记得有一些可用可不用的代码，可以注释掉而不要直接删掉。免得以后用的时候还要重新写。
+        # src = src[:1000]
+        # out = out[:1000]
+
+        # 是否将数据随机打乱？
+        if shuffle:
+            data = list(zip(input_data, output_data))
+            random.shuffle(data)
+            input_data, output_data = zip(*data)
+
+        # 按照batch将数据输出给深度学习模型。
+        # 注意，因为下面使用了yield而非return，所以这个函数是一个生成器。
+        bert_name = 'bert-base-uncased'
+        tokenizer = BertTokenizer.from_pretrained(bert_name)
+        for i in range(0, len(input_data), batch_size):
+            batch_x = tokenizer(input_data[i: i + batch_size], padding=True)['input_ids']
+
+            # 提取输出数据的下一个batch。
+            batch_output = [int(label.strip()) for label in output_data[i: i+batch_size]]
+            batch_y = np.array(batch_output)
+
+            yield batch_x, batch_y
 
 
 # 记住哦，main是一个python脚本的入口。
