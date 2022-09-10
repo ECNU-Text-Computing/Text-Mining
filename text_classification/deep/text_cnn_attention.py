@@ -55,9 +55,9 @@ if __name__ == '__main__':
             criterion_name, optimizer_name, gpu, out_channels, filter_sizes \
                 = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, [1, 2, 3]
             # 创建类的实例
-            model = CNNAttention(vocab_size, embed_dim, hidden_dim, num_classes,
-                                 dropout_rate, learning_rate, num_epochs, batch_size,
-                                 criterion_name, optimizer_name, gpu, out_channels=out_channels, filter_sizes=filter_sizes)
+            model = CNNAttention(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate,
+                                 num_epochs, batch_size, criterion_name, optimizer_name, gpu,
+                                 out_channels=out_channels, filter_sizes=filter_sizes)
             # 传入简单数据，查看模型运行结果
             # input_data: [batch_size, seq_len] = [3, 5]
             input_data = torch.LongTensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
