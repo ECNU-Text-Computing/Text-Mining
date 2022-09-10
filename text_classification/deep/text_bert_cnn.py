@@ -34,9 +34,9 @@ class BERTCNN(BaseModel):
             param.requires_grad = True
 
         # 卷积核的数量
-        self.num_filters = 8
-        if 'num_filters' in kwargs:
-            self.num_filters = kwargs['num_filters']
+        self.out_channels = 8
+        if 'out_channels' in kwargs:
+            self.out_channels = kwargs['out_channels']
         # 卷积核的大小。数据类型为列表，列表长度即为卷积核数量
         self.filter_sizes = [2, 3, 4]
         if 'filter_sizes' in kwargs:
@@ -45,24 +45,24 @@ class BERTCNN(BaseModel):
         self.cnns = nn.ModuleList()
         for filter_size in self.filter_sizes:
             self.cnns.append(nn.Sequential(
-                nn.Conv2d(1, self.num_filters, (filter_size, 768)),
+                nn.Conv2d(1, self.out_channels, (filter_size, 768)),
                 nn.ReLU(),
                 nn.AdaptiveMaxPool2d(1)
             ))
         # 设置全连接层的参数
         self.fc = nn.Sequential(
             nn.Dropout(p=self.dropout_rate),
-            nn.Linear(self.num_filters * len(self.filter_sizes), self.hidden_dim2),
+            nn.Linear(self.out_channels * len(self.filter_sizes), self.hidden_dim2),
             nn.Dropout(p=self.dropout_rate),
             nn.Linear(self.hidden_dim2, self.num_classes)
         )
 
     def forward(self, x):
-        # input: [batch_size, seq_len]
+        # x: [batch_size, seq_len]
         output = self.bert(x)  # [batch_size, hidden_dim]
         # [batch_size, 1, seq_len, hidden_dim]
         cnn_input = output['last_hidden_state'].unsqueeze(1)
-        # [batch_size, num_filters * len(filter_sizes)]
+        # [batch_size, out_channels * len(filter_sizes)]
         cnn_output = torch.cat([conv(cnn_input).squeeze(-1).squeeze(-1) for conv in self.cnns], dim=-1)
         out = self.fc(cnn_output)  # [batch_size, num_classes]
         return out
@@ -78,14 +78,14 @@ if __name__ == '__main__':
     if args.phase == 'test':
         print('This is a test process.')
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu \
-            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0
+        criterion_name, optimizer_name, gpu, out_channels, filter_sizes \
+            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 2, [2, 3, 4]
 
-        # 测试所用为adap模式
-        model = BERTCNN(vocab_size, embed_dim, hidden_dim, num_classes,
-                        dropout_rate, learning_rate, num_epochs, batch_size,
-                        criterion_name, optimizer_name, gpu)
-        
+        # 测试所用为2通道3卷积核的CNN
+        model = BERTCNN(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs,
+                        batch_size, criterion_name, optimizer_name, gpu,
+                        out_channels=out_channels, filter_sizes=filter_sizes)
+
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
                                        [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
                                        [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
