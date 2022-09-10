@@ -3,7 +3,6 @@ import datetime
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
 from text_cnn import TextCNN
 
 
@@ -32,7 +31,7 @@ class CNNLSTM(TextCNN):
             self.rnn_model = kwargs['rnn_model']
 
         # RNN模型初始化
-        in_dim = self.out_channels * len(self.filter_sizes)
+        in_dim = self.out_channels
         if self.rnn_model == 'LSTM':
             self.model_name = 'LSTMAttention'
             if self.bidirectional:
@@ -55,18 +54,32 @@ class CNNLSTM(TextCNN):
             print('No such RNN model!')
 
         # 设置输出层的参数
-        self.fc_out = nn.Linear(self.hidden_dim * self.num_directions, self.num_classes)
+        self.fc_out = nn.Linear(self.hidden_dim * self.num_directions * len(filter_sizes), self.num_classes)
 
     # 模型的前向传播
     def forward(self, x):
         # input: [batch_size, seq_len]
-        batch_size = x.size(0)
         embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
         embed = embed.unsqueeze(1)  # [batch_size, 1, seq_len, embed_dim]
         # 进行卷积操作，提取句子特征
+        cnn_out = [F.relu(conv(embed)).squeeze().permute(0, 2, 1) for conv in self.convs]
+        # for i in cnn_out: [batch_size, seq_len - filter_size + 1, out_channels]
+        outs = []
+        for i in cnn_out:
+            rnn_out, _ = self.model(i)  # [batch_size, seq_len - filter_size + 1, hidden_dim * num_directions]
+            rnn_out = torch.mean(rnn_out, dim=1)  # [batch_size, hidden_dim * num_directions]
+            outs.append(rnn_out)
+        out = torch.cat(outs, 1)  # [batch_size, hidden_dim * num_directions * num_filters]
+        out = self.drop_out(out)
+        out = self.fc_out(out)
+
+        '''
+        batch_size = x.size(0)
         cnn_out = [F.relu(conv(embed)).squeeze().reshape(batch_size * self.out_channels, -1) for conv in self.convs]
+        # for i in cnn_out: [batch_size * out_channels, seq_len - filter_size + 1]
         # 手动padding
         rnn_in = []
+        #
         for i in cnn_out:
             rnn_in.append(i.permute(1, 0))
         rnn_in = pad_sequence(rnn_in).permute(0, 2, 1)\
@@ -77,6 +90,8 @@ class CNNLSTM(TextCNN):
         hidden = torch.mean(hidden, dim=1)  # [batch_size, hidden_dim * num_directions]
         hidden = self.drop_out(hidden)  # [batch_size, hidden_dim * num_directions]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
+        '''
+
         return out
 
 
