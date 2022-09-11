@@ -53,7 +53,7 @@ class TextRNN(BaseModel):
             print('No such RNN model!')
 
         # 设置输出层的参数
-        self.fc_out = nn.Linear(hidden_dim * self.num_directions, num_classes)
+        self.fc_out = nn.Linear(self.hidden_dim * self.num_directions, self.num_classes)
 
     # 模型的前向传播
     def forward(self, x):
@@ -61,10 +61,10 @@ class TextRNN(BaseModel):
         embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
         # 此处不用“_”代表的最后一个hidden_state的原因：
         # “_”的形状为[batch_size, num_layers * num_directions, hidden_dim]，多出了num_layers，处理起来步骤较多
-        hidden, _ = self.model(embed)  # [batch_size, seq_len, hidden_dim * self.num_directions]
-        hidden = torch.mean(hidden, dim=1)  # [batch_size, hidden_dim * self.num_directions]
+        hidden, _ = self.model(embed)  # [batch_size, seq_len, hidden_dim * num_directions]
+        hidden = torch.mean(hidden, dim=1)  # [batch_size, hidden_dim * num_directions]
         print(hidden.size())
-        hidden = self.drop_out(hidden)  # [batch_size, hidden_dim * self.num_directions]
+        hidden = self.drop_out(hidden)  # [batch_size, hidden_dim * num_directions]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out
 
@@ -85,11 +85,12 @@ if __name__ == '__main__':
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu, num_layers, num_directions \
             = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, 2
-        # 创建类的实例
+
         model = TextRNN(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs,
                         batch_size, criterion_name, optimizer_name, gpu,
                         num_layers=num_layers, num_directions=num_directions)
         # 传入简单数据，查看模型运行结果
+        # input_data: [batch_size, seq_len] = [3, 5]
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
         output_data = model(input_data)
         print("The output is: {}".format(output_data))
