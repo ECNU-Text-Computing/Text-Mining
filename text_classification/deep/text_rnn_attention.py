@@ -109,16 +109,16 @@ if __name__ == '__main__':
             num_epochs, batch_size, criterion_name, optimizer_name, gpu, num_layers, num_directions \
                 = 100, 256, 32, 2, 0.5, 0.0001, 3, 64, 'CrossEntropyLoss', 'Adam', 0, 2, 2
 
-            # 测试所用模型为双层双向LSTM
+            # 测试所用模型为2层双向LSTM
             model = RNNAttention(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate,
                                  num_epochs, batch_size, criterion_name, optimizer_name, gpu,
                                  num_layers=num_layers, num_directions=num_directions)
 
-            input = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
-                                      [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
-                                      [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
-            output = model(input)
-            print(output)
+            input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
+                                           [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
+                                           [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
+            output_data = model(input_data)
+            print(output_data)
 
             print('The test process is done.')
 
