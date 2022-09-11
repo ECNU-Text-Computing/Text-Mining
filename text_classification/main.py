@@ -133,7 +133,7 @@ def main_dl(config):
     # 实例化深度学习模型。具体实例化哪个模型由model_name决定。
     model = dl_model_dict[model_name](vocab_size=vocab_size, **config)
 
-    # data_generator = 选择
+    # 根据不同特征选择调用的数据生成器类型
     if feature == 'bert':
         generator = data_loader.bert_data_generator
     elif feature == 'hierarchical':
