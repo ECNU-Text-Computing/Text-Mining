@@ -2,7 +2,7 @@ import argparse
 import datetime
 import torch
 import torch.nn as nn
-from base_model import BaseModel
+from deep.base_model import BaseModel
 
 
 # RNN、多层RNN与双向RNN
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         # input_data: [batch_size, seq_len] = [3, 5]
         input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
         output_data = model(input_data)
-        print("The output is: {}".format(output_data))
+        print("The output_data is: {}".format(output_data))
 
         print("The test process is done.")
 

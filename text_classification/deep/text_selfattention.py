@@ -16,10 +16,10 @@ import torch
 from math import sqrt
 import torch.nn as nn
 import torch.nn.functional as F
-from base_model import BaseModel
+from deep.base_model import BaseModel
 
 
-# Text SelfAttention: input -> embedding -> 特征乘以三个矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
+# Text SelfAttention: x -> embedding -> 特征乘以三个矩阵得到Q K V ->Q 和K 相乘得到注意力矩阵A并归一化
 class SelfAttention(BaseModel):
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,
@@ -46,7 +46,7 @@ class SelfAttention(BaseModel):
         self.fc = nn.Linear(self.dim_v, self.num_classes)
 
     def forward(self, x):
-        # input x: [batch_size, seq_len]
+        # x x: [batch_size, seq_len]
         x = self.embedding(x)  # [batch_size, seq_len, embedding]
         # 此处将input的矩阵x进行线性变换得到Q, K, V
         Q = self.q(x)  # [batch_size, seq_len, dim_k]

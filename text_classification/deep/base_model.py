@@ -81,7 +81,7 @@ class BaseModel(nn.Module):
         return out
 
     # 模型训练。
-    def train_model(self, model, feature, data_generator, input_path, output_path, word_dict,
+    def train_model(self, model, data_generator, input_path, output_path, word_dict,
                     input_path_val=None, output_path_val=None,
                     input_path_test=None, output_path_test=None,
                     save_folder=None):
@@ -98,7 +98,7 @@ class BaseModel(nn.Module):
             step_num = 0
             sample_num = 0
             # 在每轮中，每次喂给（feed）模型batch_size个样本。
-            for x, y in data_generator(input_path, output_path, feature, word_dict, batch_size=self.batch_size):
+            for x, y in data_generator(input_path, output_path, word_dict, batch_size=self.batch_size):
                 # 将原始数据转化为torch.LongTensor格式。
                 # 并将输入和输出数据都传送到对应的设备上。
                 batch_x = torch.LongTensor(x).to(self.device)
@@ -144,7 +144,7 @@ class BaseModel(nn.Module):
             # 评价模型在验证数据集上的性能。
             if input_path_val and output_path_val:
                 metric_score = \
-                    self.eval_model(model, feature, data_generator, input_path_val, output_path_val, word_dict, 'val', epoch)
+                    self.eval_model(model, data_generator, input_path_val, output_path_val, word_dict, 'val', epoch)
                 acc = metric_score['1acc']
                 torch.save(model, '{}{}.ckpt'.format(save_folder, epoch))
                 print("Save model to {}.".format('{}{}.ckpt'.format(save_folder, epoch)))
@@ -157,7 +157,7 @@ class BaseModel(nn.Module):
 
             # 评价模型在测试数据集上的性能。
             if input_path_test and output_path_test:
-                self.eval_model(model, feature, data_generator, input_path_test, output_path_test, word_dict, 'test', epoch)
+                self.eval_model(model, data_generator, input_path_test, output_path_test, word_dict, 'test', epoch)
 
         # 用最优的模型评价模型在测试数据集上的性能。
         if input_path_test and output_path_test:
@@ -165,10 +165,10 @@ class BaseModel(nn.Module):
             model = torch.load('{}{}.ckpt'.format(save_folder, 'best'))
             print(model)
             model.eval()
-            self.eval_model(model, feature, data_generator, input_path_test, output_path_test, word_dict, 'test', 'final')
+            self.eval_model(model, data_generator, input_path_test, output_path_test, word_dict, 'test', 'final')
 
     # 模型验证。
-    def eval_model(self, model, feature, data_generator, input_path, output_path, word_dict, phase, epoch):
+    def eval_model(self, model, data_generator, input_path, output_path, word_dict, phase, epoch):
         # 将模型对象传递到对应的设备上。
         model.to(self.device)
         # 将dropout等失活。
@@ -179,7 +179,7 @@ class BaseModel(nn.Module):
         sample_num = 0
         # 此处没有epoch，因为只要遍历一轮数据即可得到测试结果，并不需要通过这个过程修改模型中的参数。
         # 按照batch的大小（size）依次选取训练数据和验证数据。
-        for x, y in data_generator(input_path, output_path, feature, word_dict, batch_size=self.batch_size):
+        for x, y in data_generator(input_path, output_path, word_dict, batch_size=self.batch_size):
             # 将原始数据转化为torch.LongTensor格式。
             # 并将输入和输出数据都传送到对应的设备上。
             batch_x = torch.LongTensor(x).to(self.device)

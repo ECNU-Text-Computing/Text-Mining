@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
-from base_model import BaseModel
+from deep.base_model import BaseModel
 
 
 class RNNAttention(BaseModel):

@@ -17,6 +17,12 @@ from shallow.logistic_regression import LR
 from shallow.svm import SVM
 from deep.base_model import BaseModel
 from deep.text_cnn import TextCNN
+from deep.text_cnn_attention import CNNAttention
+from deep.text_rnn import TextRNN
+from deep.text_rnn_attention import RNNAttention
+from deep.text_rcnn import TextRCNN
+from deep.text_selfattention import SelfAttention
+from deep.text_selfattention_with_PE import SelfAttentionWithPE
 from deep.bert import BERT
 from deep.hierarchy.hierarchical_att import HierAttNet
 
@@ -30,6 +36,12 @@ ml_model_dict = {
 dl_model_dict = {
     'mlp': BaseModel,
     'textcnn': TextCNN,
+    'textcnnattention': CNNAttention,
+    'textrnn': TextRNN,
+    'textrnnattention': RNNAttention,
+    'textrcnn': TextRCNN,
+    'textsa': SelfAttention,
+    'textsawithpe': SelfAttentionWithPE,
     'bert': BERT,
     'hierarchical_attention': HierAttNet
 }
@@ -106,9 +118,9 @@ def main_dl(config):
     input_path_test = 'datasets/{}/test.input_data'.format(data_name)
 
     # 训练/验证/测试.输出 数据集的地址。
-    output_path_train = 'datasets/{}/train.output'.format(data_name)
-    output_path_val = 'datasets/{}/val.output'.format(data_name)
-    output_path_test = 'datasets/{}/test.output'.format(data_name)
+    output_path_train = 'datasets/{}/train.output_data'.format(data_name)
+    output_path_val = 'datasets/{}/val.output_data'.format(data_name)
+    output_path_test = 'datasets/{}/test.output_data'.format(data_name)
 
     # 将实验中间产生的数据，如训练好的模型文件，保存在实验（exp）文件夹中。
     # save_folder = 'exp/aapr/'
@@ -142,7 +154,7 @@ def main_dl(config):
         generator = data_loader.data_generator
 
     # 调用这个类的train_model函数来训练这个模型。
-    model.train_model(model, feature, generator, input_path_train, output_path_train, word_dict,
+    model.train_model(model, generator, input_path_train, output_path_train, word_dict,
                       input_path_val=input_path_val, output_path_val=output_path_val,
                       input_path_test=input_path_test, output_path_test=output_path_test,
                       save_folder=save_model_folder)

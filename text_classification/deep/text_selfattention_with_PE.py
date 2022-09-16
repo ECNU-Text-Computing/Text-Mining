@@ -1,5 +1,5 @@
 '''
-Class SelfAttentionWithPE
+Class DecoderRNN
 ======
 Using nn.TransformerEncoderLayer() to construct self-attention and feedforward network
 With positional encoding
@@ -45,7 +45,7 @@ class SelfAttentionWithPE(BaseModel):
         content = self.pos_encoder(content)  # [batch_size, seq_len, embed_dim]
         output = self.transformer_encoder(content)  # [batch_size, seq_len, embed_dim]
         output = torch.mean(output, dim=1)  # [batch_size, embed_dim]
-        output = self.fc1(output)  # [batch_size, hidden_dim]
+        output = self.fc(output)  # [batch_size, hidden_dim]
         output = self.fc_out(output)  # [batch_size, num_classes]
         return output
 
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
         src = torch.LongTensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])  # [batch_size, seq_len] = [3, 5]
         out = model(src)
-        print("The output is: {}".format(out))
+        print("The output_data is: {}".format(out))
 
         print("The test process is done.")
 
@@ -98,4 +98,4 @@ if __name__ == '__main__':
 
     end_time = datetime.datetime.now()
     print("{} takes {} seconds.".format(args.phase, (end_time - start_time).seconds))
-    print("Done SelfAttentionWithPE.")
+    print("Done DecoderRNN.")
