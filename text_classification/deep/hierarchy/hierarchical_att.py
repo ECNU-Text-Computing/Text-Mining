@@ -3,7 +3,7 @@ import datetime
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from text_rnn_attention import RNNAttention
+from deep.text_rnn_attention import RNNAttention
 
 
 class HierAttNet(RNNAttention):
@@ -22,7 +22,7 @@ class HierAttNet(RNNAttention):
         self.fc_out = nn.Linear(self.hidden_out, self.num_classes)
 
     def forward(self, x):
-        # input: [batch_size, sent_len, seq_len]
+        # input_data: [batch_size, sent_len, seq_len]
         batch_size, sent_len, seq_len = x.size()
         x = x.reshape(-1, seq_len)  # [batch_size * sent_len, seq_len]
         embed_word = self.embedding(x)
@@ -67,7 +67,7 @@ if __name__ == '__main__':
                                         [2, 4, 6, 8, 10],
                                         [1, 4, 8, 3, 6]]])  # [batch_size, sent_len, seq_len] = [2, 3, 5]
         output_data = model(input_data)
-        print("The output is: {}".format(output_data))
+        print("The output_data is: {}".format(output_data))
 
         print("The test process is done.")
     else:
