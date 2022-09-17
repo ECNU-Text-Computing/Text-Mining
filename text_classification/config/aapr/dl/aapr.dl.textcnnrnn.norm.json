@@ -1,15 +1,15 @@
 {
   "data_name": "aapr",
 
-  "model_name": "textcnn",
+  "model_name": "textrnncnn",
   "embed_dim": 128,
   "hidden_dim": 128,
   "out_channels": 8,
-  "kernel_size": [2, 3, 4],
+  "filter_sizes": [2, 3, 4],
   "num_classes": 2,
   "dropout_rate": 0.5,
   "learning_rate": 0.0001,
-  "num_epochs": 10,
+  "num_epochs": 3,
   "batch_size": 64,
   "criterion_name": "CrossEntropyLoss",
   "optimizer_name": "Adam",
@@ -20,5 +20,9 @@
   "cover_rate": 1,
   "min_count": 1,
 
-  "metrics_num": 4
+  "metrics_num": 4,
+
+  "rnn_model": "LSTM",
+  "num_layers": 2,
+  "num_directions": 2
 }

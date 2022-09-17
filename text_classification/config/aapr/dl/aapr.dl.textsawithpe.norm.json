@@ -1,15 +1,15 @@
 {
   "data_name": "aapr",
 
-  "model_name": "textcnn",
+  "model_name": "textsawithpe",
   "embed_dim": 128,
   "hidden_dim": 128,
-  "out_channels": 8,
-  "kernel_size": [2, 3, 4],
   "num_classes": 2,
   "dropout_rate": 0.5,
   "learning_rate": 0.0001,
   "num_epochs": 10,
+  "num_layers": 6,
+  "num_heads": 2,
   "batch_size": 64,
   "criterion_name": "CrossEntropyLoss",
   "optimizer_name": "Adam",

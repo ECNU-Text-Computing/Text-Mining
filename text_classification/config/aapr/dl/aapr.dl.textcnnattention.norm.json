@@ -1,11 +1,11 @@
 {
   "data_name": "aapr",
 
-  "model_name": "textcnn",
+  "model_name": "textcnnattention",
   "embed_dim": 128,
   "hidden_dim": 128,
   "out_channels": 8,
-  "kernel_size": [2, 3, 4],
+  "filter_sizes": [2, 3, 4],
   "num_classes": 2,
   "dropout_rate": 0.5,
   "learning_rate": 0.0001,
