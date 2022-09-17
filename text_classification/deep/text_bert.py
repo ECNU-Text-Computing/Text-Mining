@@ -39,7 +39,7 @@ import argparse
 import datetime
 import torch
 import torch.nn as nn
-from base_model import BaseModel
+from deep.base_model import BaseModel
 from transformers import BertModel, BertTokenizer
 
 
@@ -107,15 +107,15 @@ class BERT(BaseModel):
 
     def forward(self, x):
         if self.token:
-            # input: [batch_size, seq_len]
+            # x: [batch_size, seq_len]
             output = self.bert(x)
             out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
             out = self.drop_out(out)  # [batch_size, num_classes]
             out = self.fc(out)  # [batch_size, num_classes]
         else:
-            # input: [batch_size]
+            # x: [batch_size]
             max_len = max(len(i) for i in x)
-            tokens = self.tokenizer.encode(x, pad_to_max_lenth=True, return_tensors='pt')
+            tokens = self.tokenizer.encode(x, return_tensors='pt')
             output = self.bert(input_ids=tokens)
             out = torch.mean(output['last_hidden_state'], dim=1)  # [batch_size, hidden_dim]
             out = self.drop_out(out)  # [batch_size, num_classes]
@@ -142,18 +142,18 @@ if __name__ == '__main__':
         print('This is a test process.')
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu, mode, token \
-            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 'pro', False
+            = 100, 64, 32, 2, 0.5, 0.0001, 3, 3, 'CrossEntropyLoss', 'Adam', 0, 'pro', True
 
         # 测试所用为pro模式
         model = BERT(vocab_size, embed_dim, hidden_dim, num_classes,
                      dropout_rate, learning_rate, num_epochs, batch_size,
                      criterion_name, optimizer_name, gpu, mode=mode, token=token)
         # 测试数据为id时
-        '''input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
+        input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7],
                                        [1, 3, 5, 7, 9], [2, 4, 6, 8, 10],
-                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]'''
+                                       [1, 4, 8, 3, 6]])  # [batch_size, seq_len] = [6, 5]
         # 测试数据为文本时
-        input_data = ['This is a test process.', 'Please wait.', 'The test process is done.']
+        # input_data = ['This is a test process.', 'Please wait.', 'The test process is done.']
         # 训练模型
         output_data = model(input_data)
         print(output_data)

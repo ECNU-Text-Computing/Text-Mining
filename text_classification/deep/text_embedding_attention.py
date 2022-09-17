@@ -1,9 +1,19 @@
+"""
+Attention
+======
+Attention计算方式可选：
+    点积（dot product）
+    串联（concat）
+    余弦相似度（cosine similarity）
+    多层感知机（multilayer perceptron）
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import argparse
 import datetime
-from base_model import BaseModel
+from deep.base_model import BaseModel
 
 
 class Attention(BaseModel):
@@ -44,7 +54,7 @@ class Attention(BaseModel):
             print('No such Attention model!')
 
     def forward(self, x):
-        # input: [batch_size, seq_len]
+        # input_data: [batch_size, seq_len]
         embed = self.embedding(x)  # [batch_size, seq_len, embed_dim]
         M = self.out_trans(embed)  # [batch_size, seq_len, embed_dim]
         if self.attention_name == 'cosine similarity':
@@ -63,7 +73,7 @@ class Attention(BaseModel):
         out = torch.sum(out, dim=1)  # [batch_size, embed_dim]
         out = F.relu(out)
         # 通过两个全连接层后输出
-        out = self.fc1(out)
+        out = self.fc(out)
         out = self.fc_out(out)
         return out
 
