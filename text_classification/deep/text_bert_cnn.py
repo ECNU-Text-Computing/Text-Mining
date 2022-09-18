@@ -2,11 +2,11 @@ import argparse
 import datetime
 import torch
 import torch.nn as nn
-from base_model import BaseModel
+from deep.base_model import BaseModel
 from transformers import BertModel
 
 
-# BERT+CNN模型
+# BERT2+CNN模型
 class BERTCNN(BaseModel):
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
                  dropout_rate, learning_rate, num_epochs, batch_size,

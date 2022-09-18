@@ -55,7 +55,7 @@ class TextCNN(BaseModel):
         embed = embed.unsqueeze(1)  # [batch_size, 1, seq_len, embedding]
         # 进行卷积和池化操作，并将结果按列（即维数1）拼接
         cnn_out = torch.cat([self.con_and_pool(embed, con) for con in self.convs], 1)  # size同下
-        cnn_out = self.drop_out(cnn_out)  # [batch_size, out_channels * len(filter_sizes)]
+        cnn_out = self.drop_out(cnn_out)  # [batch_size, out_channels * num_filters]
         hidden = self.fc1(cnn_out)  # [batch_size, hidden_dim]
         out = self.fc_out(hidden)  # [batch_size, num_classes]
         return out

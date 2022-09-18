@@ -16,18 +16,21 @@ from data_loader import DataLoader
 from shallow.logistic_regression import LR
 from shallow.svm import SVM
 from deep.base_model import BaseModel
+from deep.text_bert import BERT
+from deep.text_bert_full import BERT2
+from deep.text_bert_cnn import BERTCNN
 from deep.text_cnn import TextCNN
 from deep.text_cnn_attention import CNNAttention
+from deep.text_cnn_rnn import CNNRNN
 from deep.text_dpcnn import DPCNN
+from deep.text_mcnn import TextMCNN
 from deep.text_rnn import TextRNN
 from deep.text_rnn_attention import RNNAttention
 from deep.text_rcnn import TextRCNN
 from deep.text_rnn_cnn import RNNCNN
-from deep.text_cnn_rnn import CNNRNN
 from deep.text_embedding_attention import Attention
 from deep.text_selfattention import SelfAttention
 from deep.text_selfattention_with_PE import SelfAttentionWithPE
-from deep.text_bert import BERT
 from deep.hierarchy.hierarchical_att import HierAttNet
 
 # 保存机器学习模型的全局变量。
@@ -39,10 +42,14 @@ ml_model_dict = {
 # 保存深度学习模型的全局变量。
 dl_model_dict = {
     'mlp': BaseModel,
+    'bert': BERT,
+    'bert_full': BERT2,
+    'bertcnn': BERTCNN,
     'textcnn': TextCNN,
     'textcnnattention': CNNAttention,
-    'textdpcnn': DPCNN,
     'textcnnrnn': CNNRNN,
+    'textdpcnn': DPCNN,
+    'textmcnn': TextMCNN,
     'textrnn': TextRNN,
     'textrnnattention': RNNAttention,
     'textrcnn': TextRCNN,
@@ -50,7 +57,6 @@ dl_model_dict = {
     'textattention': Attention,
     'textsa': SelfAttention,
     'textsawithpe': SelfAttentionWithPE,
-    'bert': BERT,
     'hierarchical_attention': HierAttNet
 }
 
