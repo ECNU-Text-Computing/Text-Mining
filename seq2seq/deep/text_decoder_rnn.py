@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 
 class DecoderRNN(TextRNN):
-    KEY_ATTN_SCORE = 'attention_score'
+    KEY_ATTN_SCORE = 'attention_score' 
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
 
