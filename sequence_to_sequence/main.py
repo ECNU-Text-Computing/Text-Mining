@@ -11,106 +11,75 @@ import os
 import argparse
 import datetime
 import json
+import torch.nn.functional as F
 
 from data_loader import DataLoader
-from shallow.logistic_regression import LR
-from shallow.svm import SVM
-from deep.base_model import BaseModel
-from deep.text_bert import BERT
-from deep.text_bert_full import BERT2
-from deep.text_bert_cnn import BERTCNN
-from deep.text_cnn import TextCNN
-from deep.text_cnn_attention import CNNAttention
-from deep.text_cnn_rnn import CNNRNN
-from deep.text_dpcnn import DPCNN
-from deep.text_mcnn import TextMCNN
-from deep.text_rnn import TextRNN
-from deep.text_rnn_attention import RNNAttention
-from deep.text_rcnn import TextRCNN
-from deep.text_rnn_cnn import RNNCNN
-from deep.text_embedding_attention import Attention
-from deep.text_selfattention import SelfAttention
-from deep.text_selfattention_with_PE import SelfAttentionWithPE
-from deep.hierarchy.hierarchical_att import HierAttNet
-
-# 保存机器学习模型的全局变量。
-ml_model_dict = {
-    'svm': SVM,
-    'lr': LR
-}
+from base_model import BaseModel
+from seq2seq import Seq2seq
+from deep.text_encoder_rnn import EncoderRNN
+from deep.text_decoder_rnn import DecoderRNN
 
 # 保存深度学习模型的全局变量。
 dl_model_dict = {
     'mlp': BaseModel,
-    'bert': BERT,
-    'bert_full': BERT2,
-    'bertcnn': BERTCNN,
-    'textcnn': TextCNN,
-    'textcnnattention': CNNAttention,
-    'textcnnrnn': CNNRNN,
-    'textdpcnn': DPCNN,
-    'textmcnn': TextMCNN,
-    'textrnn': TextRNN,
-    'textrnnattention': RNNAttention,
-    'textrcnn': TextRCNN,
-    'textrnncnn': RNNCNN,
-    'textattention': Attention,
-    'textsa': SelfAttention,
-    'textsawithpe': SelfAttentionWithPE,
-    'hierarchical_attention': HierAttNet
+    'seq2seq': Seq2seq
 }
 
+encoder_dict = {
+    'rnn': EncoderRNN
+}
 
-# 机器学习模型的mian函数。
-def main_ml(config):
-    # 解读config文件中的元素。
-    # json数据加载（load）到程序中后，即为一个字典（dict）。
-    data_name = config['data_name']  # 'aapr'
-    model_name = config['model_name']  # 'svm'
-    feature = config['feature']  # 'tf'
-    metrics_num = config['metrics_num']
-
-    # 数据导入类的实例化。
-    data_loader = DataLoader()
-
-    # 导入训练数据。
-    x_train, y_train = data_loader.data_load(data_name=data_name, phase='train', feature=feature)
-    # 模型类的实例化，具体选择哪个模型，由model_name决定。
-    model = ml_model_dict[model_name](metrics_num=metrics_num)
-    # 该方法又实例化了sklearn中的机器学习模型。
-    model.build()
-
-    # 用训练数据训练模型。
-    model.train(x_train, y_train)
-
-    # 将实验中间产生的数据，如训练好的模型文件，保存在实验（exp）文件夹中。
-    # save_folder = 'exp/aapr/'
-    save_folder = '{}{}/'.format(data_loader.exp_root, data_name)
-    if not os.path.exists(save_folder):
-        os.mkdir(save_folder)
-    # 最后，保存模型的文件为以下格式，例如：exp/aapr/lr.tf。
-    model_path = "{}{}/{}.{}".format(data_loader.exp_root, data_name, model_name, feature)
-    # 将训练好的模型保存到这个地址。
-    model.save_model(model_path)
-
-    # 评价模型在训练集上的效果。评价指标包括accuracy、precision、recall、f1 score等。
-    model.evaluate(x_train, y_train, phase='train')
-
-    # 导入验证数据集。
-    x_val, y_val = data_loader.data_load(data_name=data_name, phase='val', feature=feature)
-    # 导入测试数据集。
-    x_test, y_test = data_loader.data_load(data_name=data_name, phase='test', feature=feature)
-
-    # 将验证集的评价结果输出。
-    model.evaluate(x_val, y_val, phase='val')
-    # 将测试集的评价结果输出。
-    sorted_cal_res = model.evaluate(x_test, y_test, phase='test')
+decoder_dict = {
+    'rnn': DecoderRNN
+}
 
 
 def main_dl(config):
     data_name = config['data_name']  # aapr
     model_name = config['model_name']  # mlp
-    feature = config['feature']  # hierarchical
+    feature = config['feature']
+    max_len = config['max_len']  # 256
+    hidden_dim = config['hidden_dim']  # 64
+    sos_id = config['sos_id']
+    eos_id = config['eos_id']
+    encoder_name = config['encoder_name']  # encoder_rnn
+    decoder_name = config['decoder_name']  # decoder_rnn
+    if 'input_dropout_rate' in config.keys():
+            input_dropout_rate = config['input_dropout_rate']
+    else:
+        input_dropout_rate = 0
+    if 'dropout_rate' in config.keys():
+            dropout_rate = config['dropout_rate']
+    else:
+        dropout_rate = 0
+    if 'num_layers' in config.keys():
+            num_layers = config['num_layers']
+    else:
+        num_layers = 1
+    if 'bidirectional' in config.keys():
+            bidirectional = config['bidirectional']
+    else:
+        bidirectional = False
+    if 'rnn_cell' in config.keys():
+            rnn_cell = config['rnn_cell']
+    else:
+        rnn_cell = 'lstm'
+    if 'variable_lengths' in config.keys():
+            variable_lengths = config['variable_lengths']
+    else:
+        variable_lengths = False
+    if 'embedding' in config.keys():
+            embedding = config['embedding']
+    else:
+        embedding = None
+    if 'update_embedding' in config.keys():
+            update_embedding = config['update_embedding']
+    else:
+        update_embedding = True
+    if 'decode_function' in config.keys():
+            decode_function = config['decode_function']
+    else:
+        decode_function = F.log_softmax
 
     # 数据导入类的实例化。
     data_loader = DataLoader()
@@ -157,7 +126,16 @@ def main_dl(config):
 
     vocab_size = len(word_dict)
     # 实例化深度学习模型。具体实例化哪个模型由model_name决定。
-    model = dl_model_dict[model_name](vocab_size=vocab_size, **config)
+    encoder = encoder_dict[encoder_name](vocab_size=vocab_size, max_len=max_len, hidden_dim=hidden_dim,
+                                         input_dropout_rate=input_dropout_rate, dropout_rate=dropout_rate,
+                                         num_layers=num_layers, bidirectional=bidirectional, rnn_cell=rnn_cell,
+                                         variable_lengths=variable_lengths, embedding=embedding,
+                                         update_embedding=update_embedding)
+    decoder = decoder_dict[decoder_name](vocab_size=vocab_size, max_len=max_len, hidden_dim=hidden_dim,
+                                         sos_id=sos_id, eos_id=eos_id, num_layers=num_layers, rnn_cell=rnn_cell,
+                                         bidirectional=bidirectional, input_dropout_rate=input_dropout_rate,
+                                         dropout_rate=dropout_rate)
+    model = dl_model_dict[model_name](enccoder=encoder, decoder=decoder, decode_function=decode_function)
 
     # 根据不同特征选择调用的数据生成器类型
     if feature == 'bert':
@@ -190,7 +168,7 @@ if __name__ == '__main__':
     # 模型参数设置。
     # 深度学习模型的参数。
     # 此处args.phase = aapr.dl.mlp.norm
-    # config_path = './config/aapr/dl/aapr.dl.mlp.norm.json'
+    # config_path = './config/aapr/dl/aapr.dl.seq2seq.norm.json'
     config_path = './config/{}/{}/{}.json'.format(args.phase.strip().split('.')[0],
                                                   args.phase.strip().split('.')[1],
                                                   args.phase.strip())
@@ -210,10 +188,7 @@ if __name__ == '__main__':
     # dl_model_dict保存了所有已定义的深度学习模型。
     model_name = config['model_name']
     # 如果是
-    if model_name in ml_model_dict:
-        # 运行机器学习的main函数。
-        main_ml(config)
-    elif model_name in dl_model_dict:
+    if model_name in dl_model_dict:
         # 运行深度学习的main函数。
         main_dl(config)
     else:
