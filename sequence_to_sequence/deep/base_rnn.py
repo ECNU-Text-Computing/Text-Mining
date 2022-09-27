@@ -15,14 +15,13 @@ class BaseRNN(nn.Module):
         self.num_layers = num_layers
         self.input_dropout_rate = input_dropout_rate
         self.input_dropout = nn.Dropout(p=input_dropout_rate)
+        self.dropout_rate = dropout_rate
         if rnn_cell.lower() == 'lstm':
             self.rnn_cell = nn.LSTM
         elif rnn_cell.lower() == 'gru':
             self.rnn_cell = nn.GRU
         else:
             raise ValueError("Unsupported RNN Cell: {0}".format(rnn_cell))
-
-        self.dropout_rate = dropout_rate
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError()

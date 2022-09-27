@@ -4,38 +4,36 @@ import random
 import torch
 import torch.nn as nn
 import numpy as np
-from deep.text_rnn import TextRNN
 import torch.nn.functional as F
+from .base_rnn import BaseRNN
 
 
-class DecoderRNN(TextRNN):
-    KEY_ATTN_SCORE = 'attention_score' 
+class DecoderRNN(BaseRNN):
+    KEY_ATTN_SCORE = 'attention_score'
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
 
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes,
-                 dropout_rate, learning_rate, num_epochs, batch_size,
-                 criterion_name, optimizer_name, gpu, **kwargs):
-        super(DecoderRNN, self).__init__(vocab_size, embed_dim, hidden_dim, num_classes,
-                                         dropout_rate, learning_rate, num_epochs, batch_size,
-                                         criterion_name, optimizer_name, gpu, **kwargs)
+    def __init__(self, vocab_size, max_len, hidden_dim,
+                 sos_id, eos_id,
+                 num_layers=1, rnn_cell='gru', bidirectional=False,
+                 input_dropout_rate=0, dropout_rate=0):
+        super(DecoderRNN, self).__init__(vocab_size, max_len, hidden_dim,
+                                         input_dropout_rate, dropout_rate,
+                                         num_layers, rnn_cell)
+
+        self.bidirectional_encoder = bidirectional
+        self.rnn = self.rnn_cell(hidden_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_rate)
 
         self.output_size = vocab_size
-        self.max_len = 64
-        if 'max_len' in kwargs:
-            self.max_len = kwargs['max_len']
-        self.sos_id = 1
-        if 'sos_id' in kwargs:
-            self.sos_id = kwargs['sos_id']
-        self.eos_id = 2
-        if 'eos_id' in kwargs:
-            self.eos_id = kwargs['eos_id']
-        '''
-        self.use_attention = False
-        if 'use_attention' in kwargs:
-            self.use_attention = kwargs['use_attention']'''
+        self.max_length = max_len
+        self.eos_id = eos_id
+        self.sos_id = sos_id
 
         self.init_input = None
+
+        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+
+        self.fc_out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward_step(self, input_var, hidden, function):
         # input_data: [batch, seq_len]
@@ -157,21 +155,6 @@ if __name__ == '__main__':
 
     if args.phase == 'test':
         print("This is a test process.")
-
-        vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
-        criterion_name, optimizer_name, gpu, num_layers, num_directions \
-            = 100, 64, 32, 2, 0.5, 0.001, 3, 32, 'CrossEntropyLoss', 'Adam', 0, 2, 2
-        # 创建类的实例
-        model = DecoderRNN(vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs,
-                           batch_size, criterion_name, optimizer_name, gpu,
-                           num_layers=num_layers, num_directions=num_directions)
-        # 传入简单数据，查看模型运行结果
-        # [batch_size, seq_len] = [3, 5]
-        input_data = torch.LongTensor([[1, 2, 3, 4, 5], [2, 4, 6, 8, 10], [1, 4, 2, 7, 5]])
-        output_data = model(input_data)
-        print("The output_data is: {}".format(output_data))
-
-        print("The test process is done.")
 
     else:
         print("There is no {} function.".format(args.phase))
