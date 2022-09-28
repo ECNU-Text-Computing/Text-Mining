@@ -18,22 +18,48 @@ class HierAttNet(RNNAttention):
         if 'pad_size' in kwargs:
             self.pad_size = kwargs['pad_size']
 
+        # 句子层级RNN模型初始化
+        if self.rnn_model == 'LSTM':
+            self.model_name = 'LSTMAttention'
+            if self.bidirectional:
+                self.model_name = 'BiLSTMAttention'
+            self.sent_model = nn.LSTM(input_size=self.hidden_out, hidden_size=self.hidden_dim,
+                                      num_layers=self.num_layers, dropout=dropout_rate, batch_first=True,
+                                      bidirectional=self.bidirectional)
+        elif self.rnn_model == 'GRU':
+            self.model_name = 'GRUAttention'
+            if self.bidirectional:
+                self.model_name = 'BiGRUAttention'
+            self.sent_model = nn.GRU(input_size=self.hidden_out, hidden_size=self.hidden_dim,
+                                     num_layers=self.num_layers, dropout=dropout_rate, batch_first=True,
+                                     bidirectional=self.bidirectional)
+        elif self.rnn_model == 'RNN':
+            self.model_name = 'RNNAttention'
+            if self.bidirectional:
+                self.model_name = 'BiRNNAttention'
+            self.sent_model = nn.RNN(input_size=self.hidden_out, hidden_size=self.hidden_dim,
+                                     num_layers=self.num_layers, dropout=dropout_rate, batch_first=True,
+                                     bidirectional=self.bidirectional)
+        else:
+            print('No such RNN sent_model!')
+
         # 设置输出时通过的全连接层
         self.fc_out = nn.Linear(self.hidden_out, self.num_classes)
 
     def forward(self, x):
-        # input_data: [batch_size, sent_len, seq_len]
+        # input: [batch_size, sent_len, seq_len]
         batch_size, sent_len, seq_len = x.size()
         x = x.reshape(-1, seq_len)  # [batch_size * sent_len, seq_len]
         embed_word = self.embedding(x)
         # word level
-        word_hidden, word_hn = self.model(embed_word)  # hidden: [batch_size * sent_len, seq_len, hidden_dim * num_directions]
+        # hidden: [batch_size * sent_len, seq_len, hidden_dim * num_directions]
+        word_hidden, word_hn = self.model(embed_word)
         M = self.out_trans(word_hidden)  # [batch_size * sent_len, seq_len, hidden_dim * num_directions]
         alpha = F.softmax(self.w(M), dim=1)
         word_hidden = torch.sum(word_hidden * alpha, 1)  # [batch_size * sent_len, hidden_dim * num_directions]
         # sentence level
         sent_in = word_hidden.reshape(batch_size, sent_len, -1)  # [batch_size, sent_len, hidden_dim * num_directions]
-        sent_hidden, _ = self.model(sent_in)  # hidden: [batch_size, sent_len, hidden_dim * num_directions]
+        sent_hidden, _ = self.sent_model(sent_in)  # hidden: [batch_size, sent_len, hidden_dim * num_directions]
         M2 = self.out_trans(sent_hidden)
         alpha2 = F.softmax(self.w(M2), dim=1)
         sent_out = torch.sum(sent_hidden * alpha2, 1)  # [batch_size, hidden_dim * num_directions]
@@ -53,7 +79,7 @@ if __name__ == '__main__':
         print('This is a test process.')
         vocab_size, embed_dim, hidden_dim, num_classes, dropout_rate, learning_rate, num_epochs, batch_size, \
         criterion_name, optimizer_name, gpu, num_layers, num_directions \
-            = 100, 64, 32, 2, 0.5, 0.0001, 3, 8, 'CrossEntropyLoss', 'Adam', 0, 2, 2
+            = 100, 128, 32, 2, 0.5, 0.0001, 3, 8, 'CrossEntropyLoss', 'Adam', 0, 2, 2
 
         # 测试所用为2层双向LSTM
         model = HierAttNet(vocab_size, embed_dim, hidden_dim, num_classes,
