@@ -16,6 +16,9 @@ import torch.nn.functional as F
 
 from sequence_labeling.dl.bert_mlp import Bert_MLP
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.manual_seed(1)
+
 
 class Bert_Self_Attn(Bert_MLP):
     def __init__(self, **config):
@@ -38,8 +41,8 @@ class Bert_Self_Attn(Bert_MLP):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        batch = self.tokenizer(x, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.get_token_embedding(batch, 2)
+        batch = self.tokenizer(x, padding=True, truncation=True, return_tensors="pt").to(device)
+        embedded = self.get_token_embedding(batch, 0)
         embedded = self.del_special_token(x, embedded)  # 剔除[CLS], [SEP]标识
 
         Q = self.q(embedded)  # Q: batch_size * seq_len * dim_k
@@ -52,8 +55,8 @@ class Bert_Self_Attn(Bert_MLP):
         output = torch.bmm(atten, V)  # Q * K.T() * V # batch_size * seq_len * dim_v
 
         # 为提升标注效果，增加1个全连接层之后输出
-        out = self.relu(self.drop(self.fc1(output)))
-        out = self.fc2(out)
+        # out = self.relu(self.drop(self.fc1(output)))
+        out = self.fc2(output)
         out = out.view(-1, out.shape[2])  # 降维为[batch_size*seq_len, tags_size]
         tag_scores = F.log_softmax(out, dim=1)  # [batch_size*seq_len, tags_size]
 

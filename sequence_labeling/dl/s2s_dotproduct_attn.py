@@ -53,11 +53,11 @@ class SeqToSeq_DotProductAttn(SeqToSeq):
             enc_hidden = self.enc_hidden_to_dec_hidden(enc_hidden[-1, :, :])
 
         # 解码
-        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size)  # 保存解码所有时间步的output
-        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1)
-        dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1)  # [batch_size, 1]
+        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size).to(device)  # 保存解码所有时间步的output
+        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1).to(device)
+        dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1).to(device)  # [batch_size, 1]
         # 注意力权重映射
-        attn = nn.Linear(self.dec_embedding_dim + self.dec_hidden_dim, seq_len)
+        attn = nn.Linear(self.dec_embedding_dim + self.dec_hidden_dim, seq_len).to(device)
         for t in range(0, seq_len):
             dec_input = self.dec_embedding(dec_input).transpose(0, 1)  # [1, batch_size, dec_embedding_dim]
 
@@ -67,7 +67,7 @@ class SeqToSeq_DotProductAttn(SeqToSeq):
             # 应用权重, [batch_size, 1, enc_hidden_dim * enc_n_direction]
             attn_applied = torch.bmm(attn_weights.unsqueeze(1), enc_output.transpose(0, 1))
             # 生成新的decoder输入, [1, batch_size, enc_embedding_dim]
-            dec_input = self.attn_combine(torch.cat((dec_input[0], attn_applied.squeeze()), 1)).unsqueeze(0)
+            dec_input = self.attn_combine(torch.cat((dec_input[0], attn_applied.squeeze(1)), 1)).unsqueeze(0)
             dec_input = nn.functional.relu(dec_input)
 
             # decoder

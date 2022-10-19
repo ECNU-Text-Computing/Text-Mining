@@ -32,8 +32,8 @@ class Bert_S2S_Attn(Bert_S2S):
         trg_tensor = trg.transpose(0, 1)
 
         # 编码
-        batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt")
-        enc_embedded = self.get_token_embedding(batch, 2)
+        batch = self.tokenizer(src, padding=True, truncation=True, return_tensors="pt").to(device)
+        enc_embedded = self.get_token_embedding(batch, 0)
         # 从embedded中删除表示[CLS],[SEP]的向量
         enc_embedded = self.del_special_token(src, enc_embedded).transpose(0, 1)
 
@@ -47,13 +47,13 @@ class Bert_S2S_Attn(Bert_S2S):
             enc_hidden = self.enc_hidden_to_dec_hidden(enc_hidden[-1, :, :])
 
         # 解码
-        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size)  # 保存解码所有时间步的output
-        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1)
+        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size).to(device)  # 保存解码所有时间步的output
+        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1).to(device)
         dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1)  # [batch_size, 1]
         # 注意力权重映射
-        attn = nn.Linear(self.dec_embedding_dim + self.dec_hidden_dim, seq_len)
+        attn = nn.Linear(self.dec_embedding_dim + self.dec_hidden_dim, seq_len).to(device)
         for t in range(0, seq_len):
-            dec_input = self.dec_embedding(dec_input).transpose(0, 1)  # [1, batch_size, dec_embedding_dim]
+            dec_input = self.dec_embedding(dec_input).transpose(0, 1).to(device)  # [1, batch_size, dec_embedding_dim]
 
             # DotProductAttention
             # 构建权重张量, [batch_size, seq_len]
@@ -61,7 +61,7 @@ class Bert_S2S_Attn(Bert_S2S):
             # 应用权重, [batch_size, 1, enc_hidden_dim * enc_n_direction]
             attn_applied = torch.bmm(attn_weights.unsqueeze(1), enc_output.transpose(0, 1))
             # 生成新的decoder输入, [1, batch_size, enc_embedding_dim]
-            dec_input = self.attn_combine(torch.cat((dec_input[0], attn_applied.squeeze()), 1)).unsqueeze(0)
+            dec_input = self.attn_combine(torch.cat((dec_input[0], attn_applied.squeeze(1)), 1)).unsqueeze(0)
             dec_input = nn.functional.relu(dec_input)
 
             # decoder

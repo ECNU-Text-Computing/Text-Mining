@@ -20,6 +20,9 @@ sys.path.insert(0, '../../tmp')
 sys.path.insert(0, '../..')
 from sequence_labeling.dl.base_model import BaseModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.manual_seed(1)
+
 
 class Self_Attention_Multi_Head(BaseModel):
     # input : batch_size * seq_len * input_dim

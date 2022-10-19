@@ -103,14 +103,15 @@ class BaseModel(nn.Module):
     def run_train(self, model, data_path):
         print('Running {} model. Training...'.format(self.model_name))
         run_mode = 'train'
-        optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
         model.to(device)
         model.train()
+        optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
 
         train_losses = []  # 记录每一batch的loss
         valid_losses = []
         valid_f1_scores = []
         best_valid_loss = float('inf')
+        torch.backends.cudnn.enabled = False
         for epoch in range(self.num_epochs):
             train_loss = 0
             train_data_num = 0  # 统计数据量
@@ -181,6 +182,7 @@ class BaseModel(nn.Module):
         return f1_score
 
     def eval_process(self, model, run_mode, data_path):
+        model.to(device)
         model.eval()
         with torch.no_grad():
             total_loss = 0
@@ -192,8 +194,8 @@ class BaseModel(nn.Module):
                 batch_input, batch_output = self.data_to_index(seq_list, tag_list)
                 x, x_len, y, y_len = self.padding(batch_input, batch_output)
                 data_num += len(x)
-                batch_x = torch.tensor(x).long()
-                batch_y = torch.tensor(y).long()
+                batch_x = torch.tensor(x).long().to(device)
+                batch_y = torch.tensor(y).long().to(device)
                 tag_scores = model(batch_x, x_len, batch_y)
 
                 batch_y = batch_y.view(-1)
@@ -202,7 +204,7 @@ class BaseModel(nn.Module):
 
                 # 返回每一行中最大值的索引
                 y_predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
-                y_predict = list(y_predict.numpy())
+                y_predict = list(y_predict.cpu().numpy())
                 y_predict = self.index_to_tag(y_predict, y_len)
                 all_y_predict = all_y_predict + y_predict
                 # print(list(set(all_y_predict)))
@@ -215,14 +217,16 @@ class BaseModel(nn.Module):
                 # 专为测试评价结果增加代码
                 # if run_mode == 'test':
                 #     seq_len = len(x[0])
+                #     start = 0
                 #     for i in range(len(x)):
-                #         print(self.index_to_vocab(x[i]))
-                #         print(y_true[i*seq_len:(i+1)*seq_len-1])
-                #         print(y_predict[i*seq_len:(i+1)*seq_len-1])
+                #         end = start +y_len[i]
+                #         print("original: ", self.index_to_vocab(x[i]))
+                #         print("True:", y_true[start:end])
+                #         print("Predict", y_predict[start:end])
+                #         start = end
 
             return total_loss / data_num, all_y_true, all_y_predict
 
-    # 剔除[PAD]的部分
     def index_to_tag(self, y, y_len):
         index_tag_dict = dict(zip(self.tag_index_dict.values(), self.tag_index_dict.keys()))
         y_tagseq = []

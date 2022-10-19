@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 from sequence_labeling.dl.bert_mlp import Bert_MLP
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -31,8 +32,8 @@ class Bert_LSTM(Bert_MLP):
 
     def forward(self, seq_list):
         # BertModel embedding
-        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.get_token_embedding(batch, 2)
+        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt").to(device)
+        embedded = self.get_token_embedding(batch, 0)
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
         output, _ = self.lstm(embedded)

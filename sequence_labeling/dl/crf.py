@@ -12,6 +12,8 @@ A class for CRF.
 import torch
 import torch.nn as nn
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.manual_seed(1)
 
 def argmax(vec):
     # return the argmax as a python int
@@ -37,7 +39,7 @@ class CRF(nn.Module):
 
         # 转移矩阵，矩阵中代表由状态j到i的概率
         self.transitions = nn.Parameter(
-            torch.randn(self.tagset_size, self.tagset_size))
+            torch.randn(self.tagset_size, self.tagset_size)).to(device)
 
         # 规则：任何状态都不能转移到'SOS','EOS'不能转移到其他状态
         self.transitions.data[self.tag_to_ix["SOS"], :] = -10000
@@ -46,8 +48,8 @@ class CRF(nn.Module):
     # 计算配分函数Z(x)
     # Z(x)的作用：做全局归一化，解决标注偏置问题。其关键在于需要遍历所有路径。
     # Z(x)的计算：前向算法
-    def _forward_alg(self, feats):
-        init_alphas = torch.full((1, self.tagset_size), -10000.)
+    def forward_alg(self, feats):
+        init_alphas = torch.full((1, self.tagset_size), -10000.).to(device)
         # SOS_TAG has all of the score.
         init_alphas[0][self.tag_to_ix["SOS"]] = 0.
 
@@ -77,10 +79,10 @@ class CRF(nn.Module):
         return alpha
 
     # 计算给定输入序列和标签序列的匹配函数，即s(x,y)
-    def _score_sentence(self, feats, tags):
+    def score_sentence(self, feats, tags):
         # Gives the score of a provided tag sequence
-        score = torch.zeros(1)
-        tags = torch.cat([torch.tensor([self.tag_to_ix["SOS"]], dtype=torch.long), tags])  # 将SOS_TAG的标签拼接到tag序列上
+        score = torch.zeros(1).to(device)
+        tags = torch.cat([torch.tensor([self.tag_to_ix["SOS"]], dtype=torch.long).to(device), tags])  # 将SOS_TAG的标签拼接到tag序列上
         for i, feat in enumerate(feats):
             # self.transitions[tags[i + 1], tags[i]]：第i时间步对应的标签转移到下一时间步对应标签的概率
             # feat[tags[i+1]]：feats第i个时间步对应标签的score。之所以用i+1是要跳过tag序列开头的SOS
@@ -90,11 +92,11 @@ class CRF(nn.Module):
         return score
 
     # 维特比解码，给定输入x和相关参数(发射矩阵和转移矩阵)，获得概率最大的标签序列
-    def _viterbi_decode(self, feats):  # 维特比
+    def viterbi_decode(self, feats):  # 维特比
         backpointers = []
 
         # Initialize the viterbi variables in log space 初始化
-        init_vvars = torch.full((1, self.tagset_size), -10000.)
+        init_vvars = torch.full((1, self.tagset_size), -10000.).to(device)
         init_vvars[0][self.tag_to_ix["SOS"]] = 0
 
         # forward_var at step i holds the viterbi variables for step i-1
@@ -136,6 +138,6 @@ class CRF(nn.Module):
 
     # 损失函数 = Z(x) - s(x,y)
     def neg_log_likelihood(self, feats, tags):
-        forward_score = self._forward_alg(feats)  # 计算配分函数Z(x)
-        gold_score = self._score_sentence(feats, tags)  # 根据真实的tags计算score
+        forward_score = self.forward_alg(feats)  # 计算配分函数Z(x)
+        gold_score = self.score_sentence(feats, tags)  # 根据真实的tags计算score
         return forward_score - gold_score

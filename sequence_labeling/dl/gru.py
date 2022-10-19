@@ -21,6 +21,7 @@ sys.path.insert(0, '.')
 sys.path.insert(0, '..')
 from sequence_labeling.dl.base_model import BaseModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -32,7 +33,7 @@ class GRU(BaseModel):
                           num_layers=self.layers, batch_first=True, bidirectional=self.bidirectional)  # GRU循环神经网络
 
     def _init_hidden(self, batch_size):
-        return torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim)
+        return torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim).to(device)
 
     def forward(self, x, x_lengths, y):
         batch_size, seq_len = x.size()

@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 from sequence_labeling.dl.bert_mlp import Bert_MLP
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -28,13 +29,13 @@ class Bert_BiLSTM(Bert_MLP):
         self.output_to_tag = nn.Linear(self.hidden_dim * self.n_directions, self.tags_size)
 
     def _init_hidden(self, batch_size):
-        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim),
-                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
+        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim).to(device),
+                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim).to(device))
         return hidden
 
     def forward(self, seq_list):
-        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
-        embedded = self.get_token_embedding(batch, 2)
+        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt").to(device)
+        embedded = self.get_token_embedding(batch, 0)
         embedded = self.del_special_token(seq_list, embedded)  # 剔除[CLS], [SEP]标识
 
         batch_size = len(seq_list)

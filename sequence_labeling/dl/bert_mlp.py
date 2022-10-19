@@ -42,6 +42,7 @@ from sequence_labeling.data_processor import DataProcessor
 from sequence_labeling.utils.evaluate import Evaluator
 from sequence_labeling.utils.evaluate_2 import Metrics
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -95,6 +96,7 @@ class Bert_MLP(nn.Module):
         model_config.output_hidden_states = True
         model_config.output_attentions = True
         self.bert_model = BertModel.from_pretrained(self.checkpoint, config=model_config)
+        self.concat_to_hidden = nn.Linear(model_config.hidden_size * 4, model_config.hidden_size)
 
         self.dropout = nn.Dropout(p=self.dropout_p)
         self.fc = nn.Sequential(nn.Linear(self.embedding_dim, self.hidden_dim), nn.ReLU(), self.dropout)
@@ -104,12 +106,13 @@ class Bert_MLP(nn.Module):
 
     def forward(self, seq_list):
         # BertModel embedding
-        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt")
+        batch = self.tokenizer(seq_list, padding=True, truncation=True, return_tensors="pt").to(device)
         # get_token_embedding()的第2个参数用于选择embedding的方式
         # 0: 使用“last_hidden_state”
         # 1: 使用“initial embedding outputs”，即hidden_states[0]
         # 2: 使用隐藏层后4层输出的和
-        embedded = self.get_token_embedding(batch, 2)
+        # 3: 使用隐藏层后4层输出的concat
+        embedded = self.get_token_embedding(batch, 0)
 
         # 从embedded中删除表示[CLS],[SEP]的向量
         embedded = self.del_special_token(seq_list, embedded)  # !!!
@@ -125,6 +128,7 @@ class Bert_MLP(nn.Module):
     def run_train(self, model, data_path):
         print('Running {} model. Training...'.format(self.model_name))
         run_mode = 'train'
+        model.to(device)
         optimizer = self.optimizer_dict[self.optimizer_name](model.parameters(), lr=self.learning_rate)
         model.train()
 
@@ -132,6 +136,7 @@ class Bert_MLP(nn.Module):
         valid_losses = []
         valid_f1_scores = []
         best_valid_loss = float('inf')
+        torch.backends.cudnn.enabled = False
         for epoch in range(self.num_epochs):
             train_loss = 0
             train_data_num = 0  # 统计数据量
@@ -141,7 +146,7 @@ class Bert_MLP(nn.Module):
                 # 生成batch_y
                 batch_output = self.tag_to_index(tag_list)
                 y = self.pad_taglist(batch_output)
-                batch_y = torch.tensor(y).long()
+                batch_y = torch.tensor(y).long().to(device)
                 batch_y = batch_y.view(-1)
 
                 # 运行model
@@ -202,6 +207,7 @@ class Bert_MLP(nn.Module):
         return f1_score
 
     def eval_process(self, model, run_mode, data_path):
+        model.to(device)
         model.eval()
         with torch.no_grad():
             total_loss = 0
@@ -214,7 +220,7 @@ class Bert_MLP(nn.Module):
                 # 生成batch_y
                 batch_output = self.tag_to_index(tag_list)
                 y = self.pad_taglist(batch_output)
-                batch_y = torch.tensor(y).long()
+                batch_y = torch.tensor(y).long().to(device)
                 batch_y = batch_y.view(-1)
 
                 # 运行model
@@ -224,7 +230,7 @@ class Bert_MLP(nn.Module):
 
                 # 返回每一行中最大值的索引
                 predict = torch.max(tag_scores, dim=1)[1]  # 1维张量
-                y_predict = list(predict.numpy())
+                y_predict = list(predict.cpu().numpy())
                 y_predict = self.index_to_tag(y_predict, self.list_to_length(tag_list))
                 all_y_predict = all_y_predict + y_predict
                 # print(list(set(all_y_predict)))
@@ -266,7 +272,7 @@ class Bert_MLP(nn.Module):
         y_tagseq = []
         seq_len = int(len(y) / len(y_len))
         for i in range(len(y_len)):
-            temp_list = y[i*seq_len:(i+1)*seq_len]
+            temp_list = y[i * seq_len:(i + 1) * seq_len]
             for count in range(seq_len):
                 if count < y_len[i]:
                     y_tagseq.append(index_tag_dict[temp_list[count]])
@@ -342,47 +348,72 @@ class Bert_MLP(nn.Module):
         return new_batch_tensor
 
     def get_token_embedding(self, batch, method):
-        self.bert_model.eval()
+        self.bert_model.to(device)
+        # self.bert_model.eval()
+        #
+        # with torch.no_grad():
+        if method == 0:
+            # 使用“last_hidden_state”
+            # last_hidden_state.shape = (batch_size, sequence_length, hidden_size)
+            embedded = self.bert_model(**batch).last_hidden_state
 
-        with torch.no_grad():
-            if method == 0:
-                # 使用“last_hidden_state”
-                # last_hidden_state.shape = (batch_size, sequence_length, hidden_size)
-                embedded = self.bert_model(**batch).last_hidden_state
+        # 使用hidden_states。hidden_states是一个元组，第一个元素是embedding，其余元素是各层的输出，
+        # 每个元素的形状是(batch_size, sequence_length, hidden_size)。
+        elif method == 1:
+            # 第1种方式：使用“initial embedding outputs”
+            embedded = self.bert_model(**batch).hidden_states[0]
 
-            # 使用hidden_states。hidden_states是一个元组，第一个元素是embedding，其余元素是各层的输出，
-            # 每个元素的形状是(batch_size, sequence_length, hidden_size)。
-            elif method == 1:
-                # 第1种方式：使用“initial embedding outputs”
-                embedded = self.bert_model(**batch).hidden_states[0]
+        elif method == 2:
+            # 第2种方式：使用隐藏层输出sum last 4 layers
+            hidden_states = self.bert_model(**batch).hidden_states
 
-            else:
-                # 第2种方式：使用隐藏层输出
-                hidden_states = self.bert_model(**batch).hidden_states
+            layers = len(hidden_states)
+            batch_size, seq_len, embed_dim = hidden_states[-1].size()
+            # print(layers, batch_size, seq_len, embed_dim)
 
-                layers = len(hidden_states)
-                batch_size, seq_len, embed_dim = hidden_states[-1].size()
-                # print(layers, batch_size, seq_len, embed_dim)
+            batch_embedding = []
+            for batch_i in range(batch_size):
+                token_embeddings = []
+                for token_i in range(seq_len):
+                    hidden_layers = []
+                    for layer_i in range(layers):
+                        vec = hidden_states[layer_i][batch_i][token_i]
+                        hidden_layers.append(vec)
+                    token_embeddings.append(hidden_layers)
+                # 连接最后四层 [number_of_tokens, 3072]
+                # concatenated_last_4_layers = [torch.cat((layer[-1], layer[-2], layer[-3], layer[-4]), 0) for layer in
+                #                               token_embeddings]
+                # batch_embedding.append(torch.stack((concatenated_last_4_layers)))
 
-                batch_embedding = []
-                for batch_i in range(batch_size):
-                    token_embeddings = []
-                    for token_i in range(seq_len):
-                        hidden_layers = []
-                        for layer_i in range(layers):
-                            vec = hidden_states[layer_i][batch_i][token_i]
-                            hidden_layers.append(vec)
-                        token_embeddings.append(hidden_layers)
-                    # 连接最后四层 [number_of_tokens, 3072]
-                    # concatenated_last_4_layers = [torch.cat((layer[-1], layer[-2], layer[-3], layer[-4]), 0) for layer in
-                    #                               token_embeddings]
-                    # batch_embedding.append(torch.stack((concatenated_last_4_layers)))
+                # 对最后四层求和 [number_of_tokens, 768]
+                summed_last_4_layers = [torch.sum(torch.stack(layer)[-4:], 0) for layer in token_embeddings]
+                batch_embedding.append(torch.stack((summed_last_4_layers)))
 
-                    # 对最后四层求和 [number_of_tokens, 768]
-                    summed_last_4_layers = [torch.sum(torch.stack(layer)[-4:], 0) for layer in token_embeddings]
-                    batch_embedding.append(torch.stack((summed_last_4_layers)))
+            embedded = torch.stack((batch_embedding))
+        else:
+            # 第3种方式：使用隐藏层输出concat last 4 layers
+            hidden_states = self.bert_model(**batch).hidden_states
 
-                embedded = torch.stack((batch_embedding))
+            layers = len(hidden_states)
+            batch_size, seq_len, embed_dim = hidden_states[-1].size()
+            # print(layers, batch_size, seq_len, embed_dim)
+
+            batch_embedding = []
+            for batch_i in range(batch_size):
+                token_embeddings = []
+                for token_i in range(seq_len):
+                    hidden_layers = []
+                    for layer_i in range(layers):
+                        vec = hidden_states[layer_i][batch_i][token_i]
+                        hidden_layers.append(vec)
+                    token_embeddings.append(hidden_layers)
+                # 连接最后四层 [number_of_tokens, 3072]
+                concatenated_last_4_layers = [torch.cat((layer[-1], layer[-2], layer[-3], layer[-4]), 0) for layer
+                                              in
+                                              token_embeddings]
+                batch_embedding.append(torch.stack((concatenated_last_4_layers)))
+
+            embedded = self.concat_to_hidden(torch.stack((batch_embedding)))
 
         return embedded
 

@@ -19,6 +19,7 @@ sys.path.insert(0, '.')
 sys.path.insert(0, '..')
 from sequence_labeling.dl.base_model import BaseModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(1)
 
 
@@ -28,8 +29,8 @@ class BiLSTM(BaseModel):
 
     # torch.randn()随机初始化，随机数满足标准正态分布（0~1）/ torch.zeros()初始化参数为0
     def _init_hidden(self, batch_size):
-        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim),
-                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim))
+        hidden = (torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim).to(device),
+                  torch.zeros(self.layers * self.n_directions, batch_size, self.hidden_dim).to(device))
         return hidden
 
     def forward(self, x, x_lengths, y):

@@ -1,5 +1,4 @@
-{
-  "data_name": "cmed",
+{"data_name": "cmed",
   "data_root": "./Datasets/cmed/",
   "inputdata_file_name": "data.input",
   "outputdata_file_name": "data.output",
@@ -17,18 +16,16 @@
 
   "window_sizes": [3, 5, 7],
   "out_channels": 128,
-
   "model_name": "Bert_CNN",
-  "checkpoint": "bert-base-chinese",
+  "checkpoint": "hfl/chinese-macbert-base",
   "embedding_dim": 768,
   "hidden_dim": 128,
   "num_layers": 1,
   "bidirectional": "True",
   "dropout_rate": 0.3,
-
   "num_epochs": 10,
   "batch_size": 32,
-  "learning_rate": 1e-3,
+  "learning_rate": 1e-05,
   "criterion_name": "NLLLoss",
   "optimizer_name": "Adam"
 }

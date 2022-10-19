@@ -58,7 +58,7 @@ class SeqToSeq(BaseModel):
         self.dec_output_to_tags = nn.Linear(self.dec_hidden_dim * self.dec_n_directions, self.tags_size)
 
     def init_hidden_enc(self, batch_size):
-        return torch.zeros(self.enc_layers * self.enc_n_directions, batch_size, self.enc_hidden_dim, device=device)
+        return torch.zeros(self.enc_layers * self.enc_n_directions, batch_size, self.enc_hidden_dim, device=device).to(device)
 
     def forward(self, src, src_lengths, trg):
         src_tensor = src
@@ -77,9 +77,9 @@ class SeqToSeq(BaseModel):
             enc_hidden = self.enc_hidden_to_dec_hidden(enc_hidden[-1, :, :])
 
         # 解码
-        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size)  # 保存解码所有时间步的output
-        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1)
-        dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1)  # [batch_size, 1]
+        dec_outputs = torch.zeros(seq_len, batch_size, self.tags_size).to(device)  # 保存解码所有时间步的output
+        dec_hidden = enc_hidden.unsqueeze(0).repeat(self.dec_layers * self.dec_n_directions, 1, 1).to(device)
+        dec_input = torch.tensor([[self.SOS_token]], device=device).repeat(batch_size, 1).to(device)  # [batch_size, 1]
         for t in range(0, seq_len):
             dec_input = self.dec_embedding(dec_input).transpose(0, 1)  # [1, batch_size, dec_embedding_dim]
             dec_output, dec_hidden = self.dec_gru(dec_input, dec_hidden)
